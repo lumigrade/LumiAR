@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV AR - Three.js WebXR</title>
+    <title>4DVV AR - iOS + Android</title>
+    
+    <!-- Model-viewer for iOS compatibility -->
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
     
     <style>
         * {
@@ -24,8 +27,20 @@
             text-align: center;
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
-            position: relative;
-            z-index: 100;
+        }
+
+        .device-info {
+            background: rgba(255, 193, 7, 0.1);
+            border: 1px solid rgba(255, 193, 7, 0.3);
+            margin: 20px;
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .device-info h3 {
+            color: #FFC107;
+            margin-bottom: 10px;
         }
 
         .viewer-container {
@@ -37,92 +52,102 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
-        #canvas3d {
+        model-viewer {
             width: 100%;
             height: 100%;
-            display: block;
-            background: #1a1a1a;
+            background-color: #1a1a1a;
+            --progress-bar-color: #4CAF50;
         }
 
-        .ar-controls {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            border-radius: 20px;
-            padding: 15px;
-            display: none;
-            z-index: 1000;
-            backdrop-filter: blur(10px);
+        .test-section {
+            padding: 20px;
+            text-align: center;
         }
 
-        .ar-controls.active {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .timeline-ar {
-            width: 300px;
-            height: 40px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            position: relative;
-            cursor: pointer;
-        }
-
-        .timeline-progress-ar {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #45a049);
-            border-radius: 20px;
-            width: 0%;
-            position: relative;
-        }
-
-        .timeline-thumb {
-            position: absolute;
-            right: -10px;
-            top: 50%;
-            transform: translateY(-50%);
-            width: 20px;
-            height: 20px;
-            background: white;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-        }
-
-        .frame-counter {
+        .test-btn {
+            background: rgba(255, 193, 7, 0.2);
+            border: 1px solid #FFC107;
             color: white;
+            padding: 12px 20px;
+            border-radius: 20px;
             font-size: 14px;
-            margin-bottom: 10px;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s ease;
         }
 
-        .manipulation-controls {
+        .test-btn:hover {
+            background: rgba(255, 193, 7, 0.4);
+        }
+
+        .animation-controls {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            text-align: center;
+        }
+
+        .playback-controls {
             display: flex;
-            gap: 10px;
-            margin-top: 10px;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .control-btn {
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
             color: white;
-            padding: 8px 12px;
-            border-radius: 15px;
-            font-size: 12px;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
         .control-btn:hover, .control-btn.active {
-            background: rgba(76, 175, 80, 0.5);
+            background: rgba(76, 175, 80, 0.3);
+            border-color: #4CAF50;
         }
 
-        .main-controls {
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .timeline-container {
+            margin: 20px 0;
+        }
+
+        .timeline {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .timeline-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .frame-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+
+        .ar-section {
             padding: 20px;
             text-align: center;
+            background: rgba(0, 0, 0, 0.2);
         }
 
         .ar-button {
@@ -150,10 +175,29 @@
             transform: none;
         }
 
-        .status-info {
-            margin-top: 15px;
-            font-size: 14px;
-            opacity: 0.8;
+        .status-bar {
+            padding: 15px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            padding: 10px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 10px;
+            margin: 10px 20px;
+        }
+
+        .success-message {
+            color: #4CAF50;
+            padding: 10px;
+            text-align: center;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 10px;
+            margin: 10px 20px;
         }
 
         .loading-overlay {
@@ -188,432 +232,367 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .surface-grid {
-            opacity: 0.3;
-            transition: opacity 0.3s ease;
-        }
-
-        .surface-grid.visible {
-            opacity: 0.8;
-        }
-
-        .error-message {
-            color: #ff6b6b;
-            padding: 10px;
-            text-align: center;
-            background: rgba(255, 107, 107, 0.1);
-            border-radius: 10px;
-            margin: 10px 20px;
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV AR Player - Three.js</h1>
-        <p>Advanced Gaussian Splatting with Full AR Controls</p>
+        <h1>🎭 4DVV AR Player</h1>
+        <p>iOS Safari + Android Chrome Compatible</p>
+    </div>
+
+    <!-- Device Detection -->
+    <div class="device-info" id="deviceInfo">
+        <h3 id="deviceType">Detecting device...</h3>
+        <div id="deviceDetails"></div>
+    </div>
+
+    <!-- File Loading Test Section -->
+    <div class="test-section">
+        <h3 style="margin-bottom: 15px;">🧪 File Loading Test</h3>
+        <button class="test-btn" onclick="testDirectAccess()">Test Direct File Access</button>
+        <button class="test-btn" onclick="testModelViewer()">Test Model-Viewer Loading</button>
+        <div id="testResults" style="margin-top: 15px;"></div>
     </div>
 
     <div class="viewer-container">
-        <canvas id="canvas3d"></canvas>
-        
-        <div class="loading-overlay" id="loadingOverlay">
-            <div class="spinner"></div>
-            <div id="loadingText">Initializing AR system...</div>
-        </div>
+        <model-viewer
+            id="frameViewer"
+            src=""
+            alt="4DVV Frame Sequence"
+            
+            ar
+            ar-modes="webxr scene-viewer quick-look"
+            ar-scale="auto"
+            ar-placement="floor"
+            
+            camera-controls
+            auto-rotate
+            auto-rotate-delay="5000"
+            
+            environment-image="neutral"
+            exposure="1.2"
+            shadow-intensity="0.4"
+            
+            loading="eager"
+            reveal="auto"
+            
+            interaction-prompt="when-focused">
+            
+            <div slot="poster" class="loading-overlay" id="loadingOverlay">
+                <div class="spinner"></div>
+                <div id="loadingText">Click test buttons above first</div>
+            </div>
+        </model-viewer>
     </div>
 
-    <div class="main-controls">
-        <button class="control-btn" onclick="testFirstFrame()" style="margin-bottom: 10px;">
-            🧪 Test Load Frame 1
-        </button>
-        <br>
-        <button class="ar-button" id="arButton" onclick="startAR()" disabled>
-            🚀 Launch AR Experience
-        </button>">
-            🚀 Launch AR Experience
-        </button>
-        <div class="status-info">
-            <div id="statusText">🧪 Test frame loading first • Then AR will be enabled</div>
-            <div style="margin-top: 5px; font-size: 12px;">
-                Features: Surface Detection • Object Manipulation • 25fps Animation
+    <div class="animation-controls">
+        <div class="playback-controls">
+            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
+            <button class="control-btn" onclick="previousFrame()" disabled>⮜ Prev</button>
+            <button class="control-btn" onclick="nextFrame()" disabled>⭢ Next</button>
+            <button class="control-btn" onclick="resetToFrame1()" disabled>🔄 Reset</button>
+        </div>
+        
+        <div class="timeline-container">
+            <div class="timeline" onclick="seekToPosition(event)">
+                <div class="timeline-progress" id="timelineProgress"></div>
+            </div>
+            <div class="frame-info">
+                <span>Frame: <span id="currentFrame">0</span> / <span id="totalFrames">400</span></span>
+                <span>FPS: <span id="fpsDisplay">25</span></span>
             </div>
         </div>
     </div>
 
-    <!-- AR Controls (shown during AR session) -->
-    <div class="ar-controls" id="arControls">
-        <div class="frame-counter" id="frameCounter">Frame 1 / 400</div>
-        
-        <div class="timeline-ar" id="timelineAR" onclick="seekFrame(event)">
-            <div class="timeline-progress-ar" id="timelineProgressAR">
-                <div class="timeline-thumb"></div>
-            </div>
-        </div>
-        
-        <div class="manipulation-controls">
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()">▶️ Play</button>
-            <button class="control-btn" onclick="toggleGrid()">📐 Grid</button>
-            <button class="control-btn" onclick="resetObject()">🔄 Reset</button>
-            <button class="control-btn" onclick="exitAR()">❌ Exit</button>
+    <div class="ar-section">
+        <button class="ar-button" id="arButton" onclick="launchAR()" disabled>
+            🚀 Launch AR Experience
+        </button>
+        <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
+            <span id="arStatus">Test file loading first</span><br>
+            <small>Expected format: data/frame_000001.glb to frame_000400.glb</small>
         </div>
     </div>
 
-    <!-- Three.js -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
-    <script src="https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
-    
+    <div class="status-bar">
+        <div id="statusText">Ready to test file loading</div>
+    </div>
+
     <script>
-        // Global variables
-        let scene, camera, renderer, arSession;
-        let currentModel = null;
-        let currentFrame = 1;
-        let totalFrames = 400;
-        let isPlaying = false;
-        let animationId = null;
-        let frameLoader = new Map(); // Cache for GLB frames
-        let surfaceGrid = null;
-        let manipulationMode = 'none'; // 'move', 'scale', 'rotate'
-        let hitTestSource = null;
-        let lastHitResult = null;
-        let objectPlaced = false;
-
-        // Frame management
-        const PRELOAD_BUFFER = 3; // Preload 3 frames ahead/behind
-        const TARGET_FPS = 25;
-        const FRAME_DURATION = 1000 / TARGET_FPS; // 40ms per frame
-
-        // DOM elements
-        const canvas = document.getElementById('canvas3d');
+        const viewer = document.getElementById('frameViewer');
         const loadingOverlay = document.getElementById('loadingOverlay');
         const loadingText = document.getElementById('loadingText');
-        const arButton = document.getElementById('arButton');
-        const arControls = document.getElementById('arControls');
-        const frameCounter = document.getElementById('frameCounter');
-        const timelineProgressAR = document.getElementById('timelineProgressAR');
+        const currentFrameSpan = document.getElementById('currentFrame');
+        const totalFramesSpan = document.getElementById('totalFrames');
+        const timelineProgress = document.getElementById('timelineProgress');
         const playBtn = document.getElementById('playBtn');
+        const arButton = document.getElementById('arButton');
+        const arStatus = document.getElementById('arStatus');
         const statusText = document.getElementById('statusText');
+        const fpsDisplay = document.getElementById('fpsDisplay');
 
-        // Initialize Three.js scene
-        function initScene() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+        let isPlaying = false;
+        let currentFrame = 0;
+        let totalFrames = 400;
+        let animationInterval = null;
+        let lastFrameTime = 0;
+        let targetFPS = 25;
+        let filesWorkingCorrectly = false;
+
+        // Device detection
+        function detectDevice() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const deviceInfo = document.getElementById('deviceInfo');
+            const deviceType = document.getElementById('deviceType');
+            const deviceDetails = document.getElementById('deviceDetails');
             
-            renderer = new THREE.WebGLRenderer({ 
-                canvas: canvas, 
-                antialias: true, 
-                alpha: true 
-            });
-            renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
-            renderer.xr.enabled = true;
-            renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-            // Basic lighting for non-AR mode
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(10, 10, 5);
-            scene.add(directionalLight);
-
-            // Create surface detection grid
-            createSurfaceGrid();
-
-            updateStatus('Scene initialized');
-        }
-
-        // Create surface detection grid
-        function createSurfaceGrid() {
-            const gridGeometry = new THREE.PlaneGeometry(2, 2, 20, 20);
-            const gridMaterial = new THREE.MeshBasicMaterial({
-                color: 0x4CAF50,
-                wireframe: true,
-                transparent: true,
-                opacity: 0.3
-            });
-            
-            surfaceGrid = new THREE.Mesh(gridGeometry, gridMaterial);
-            surfaceGrid.rotateX(-Math.PI / 2); // Lay flat
-            surfaceGrid.visible = false;
-            scene.add(surfaceGrid);
-        }
-
-        // Load GLB frame
-        async function loadFrame(frameNumber) {
-            return new Promise((resolve, reject) => {
-                // Check cache first
-                if (frameLoader.has(frameNumber)) {
-                    resolve(frameLoader.get(frameNumber));
-                    return;
-                }
-
-                const loader = new THREE.GLTFLoader();
-                const frameFile = `data/frame-${String(frameNumber).padStart(6, '0')}.glb`;
-                
-                console.log(`Loading frame ${frameNumber} from: ${frameFile}`);
-                
-                loader.load(
-                    frameFile,
-                    (gltf) => {
-                        const model = gltf.scene.clone();
-                        frameLoader.set(frameNumber, model);
-                        
-                        // Limit cache size (keep only recent frames)
-                        if (frameLoader.size > PRELOAD_BUFFER * 6) {
-                            const oldestFrame = Math.max(1, frameNumber - PRELOAD_BUFFER * 3);
-                            frameLoader.delete(oldestFrame);
-                        }
-                        
-                        resolve(model);
-                    },
-                    (progress) => {
-                        const percent = (progress.loaded / progress.total * 100).toFixed(0);
-                        updateLoadingText(`Loading frame ${frameNumber}: ${percent}%`);
-                    },
-                    (error) => {
-                        console.error(`Failed to load frame ${frameNumber} from ${frameFile}:`, error);
-                        showError(`Frame ${frameNumber} not found. Check if data/frame-${String(frameNumber).padStart(6, '0')}.glb exists`);
-                        reject(error);
-                    }
-                );
-            });
-        }
-
-        // Preload frames around current frame
-        async function preloadFrames(centerFrame) {
-            const promises = [];
-            
-            for (let i = -PRELOAD_BUFFER; i <= PRELOAD_BUFFER; i++) {
-                const frameNum = centerFrame + i;
-                if (frameNum >= 1 && frameNum <= totalFrames && !frameLoader.has(frameNum)) {
-                    promises.push(loadFrame(frameNum).catch(() => {})); // Ignore errors
-                }
+            if (isIOS) {
+                deviceType.textContent = '🍎 iOS Device Detected';
+                deviceDetails.innerHTML = `
+                    <div>✅ AR Mode: AR Quick Look (Safari native)</div>
+                    <div>✅ Compatibility: iPhone/iPad AR ready</div>
+                    <div>ℹ️ WebXR not needed on iOS</div>
+                `;
+                deviceInfo.style.borderColor = '#4CAF50';
+                deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
+            } else if (isAndroid) {
+                deviceType.textContent = '🤖 Android Device Detected';
+                deviceDetails.innerHTML = `
+                    <div>✅ AR Mode: WebXR (Chrome)</div>
+                    <div>✅ Compatibility: Android AR ready</div>
+                    <div>ℹ️ Requires Chrome browser</div>
+                `;
+                deviceInfo.style.borderColor = '#4CAF50';
+                deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
+            } else {
+                deviceType.textContent = '💻 Desktop Device';
+                deviceDetails.innerHTML = `
+                    <div>⚠️ AR Mode: Limited support</div>
+                    <div>ℹ️ Best experience on mobile</div>
+                `;
+                deviceInfo.style.borderColor = '#FFC107';
             }
             
-            await Promise.allSettled(promises);
+            statusText.textContent = `Device: ${isIOS ? 'iOS' : isAndroid ? 'Android' : 'Desktop'} • HTTPS: ${location.protocol === 'https:' ? '✅' : '❌'}`;
         }
 
-        // Set current frame
-        async function setFrame(frameNumber) {
-            if (frameNumber < 1 || frameNumber > totalFrames) return;
+        // Test direct file access
+        async function testDirectAccess() {
+            const testResults = document.getElementById('testResults');
+            testResults.innerHTML = '<div style="color: #FFC107;">Testing direct file access...</div>';
             
             try {
-                const newModel = await loadFrame(frameNumber);
+                const testUrl = 'data/frame_000001.glb';
+                console.log('Testing direct access to:', testUrl);
                 
-                // Remove current model
-                if (currentModel) {
-                    scene.remove(currentModel);
+                const response = await fetch(testUrl, { method: 'HEAD' });
+                
+                if (response.ok) {
+                    const fileSize = response.headers.get('content-length');
+                    testResults.innerHTML = `
+                        <div class="success-message">
+                            ✅ Direct access works!<br>
+                            File: ${testUrl}<br>
+                            Size: ${fileSize ? Math.round(fileSize/1024) + ' KB' : 'Unknown'}<br>
+                            Status: ${response.status}
+                        </div>
+                    `;
+                    return true;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                
-                // Add new model
-                currentModel = newModel.clone();
-                
-                // Apply current position/scale/rotation if object was placed
-                if (objectPlaced && lastHitResult) {
-                    currentModel.position.copy(lastHitResult.position);
-                    currentModel.scale.setScalar(0.1); // Start small for mobile
-                }
-                
-                scene.add(currentModel);
-                currentFrame = frameNumber;
-                
-                updateFrameDisplay();
-                preloadFrames(frameNumber); // Preload nearby frames
-                
             } catch (error) {
-                console.error('Error setting frame:', error);
-                showError(`Failed to load frame ${frameNumber}`);
+                console.error('Direct access test failed:', error);
+                testResults.innerHTML = `
+                    <div class="error-message">
+                        ❌ Direct access failed<br>
+                        Error: ${error.message}<br>
+                        Expected: data/frame_000001.glb format<br>
+                        Check: Are files uploaded to /data/ folder?
+                    </div>
+                `;
+                return false;
             }
         }
 
-        // Animation playback
-        let lastFrameTime = 0;
-        function playAnimation() {
-            if (!isPlaying) return;
+        // Test model-viewer loading
+        async function testModelViewer() {
+            const testResults = document.getElementById('testResults');
             
-            const currentTime = Date.now();
-            if (currentTime - lastFrameTime >= FRAME_DURATION) {
-                const nextFrame = currentFrame >= totalFrames ? 1 : currentFrame + 1;
-                setFrame(nextFrame);
-                lastFrameTime = currentTime;
+            if (!filesWorkingCorrectly) {
+                const directAccess = await testDirectAccess();
+                if (!directAccess) return;
             }
             
-            animationId = requestAnimationFrame(playAnimation);
+            testResults.innerHTML = '<div style="color: #FFC107;">Testing model-viewer loading...</div>';
+            loadingOverlay.classList.remove('hidden');
+            loadingText.textContent = 'Loading first frame...';
+            
+            const testFrame = 'data/frame_000001.glb';
+            
+            // Set up event listeners for this test
+            const onLoad = () => {
+                viewer.removeEventListener('load', onLoad);
+                viewer.removeEventListener('error', onError);
+                
+                loadingOverlay.classList.add('hidden');
+                testResults.innerHTML = `
+                    <div class="success-message">
+                        ✅ Model-viewer loading works!<br>
+                        Frame 1 loaded successfully<br>
+                        Ready for AR and animation
+                    </div>
+                `;
+                
+                filesWorkingCorrectly = true;
+                enableControls();
+                enableAR();
+            };
+            
+            const onError = (event) => {
+                viewer.removeEventListener('load', onLoad);
+                viewer.removeEventListener('error', onError);
+                
+                loadingOverlay.classList.add('hidden');
+                console.error('Model loading error:', event.detail);
+                testResults.innerHTML = `
+                    <div class="error-message">
+                        ❌ Model-viewer loading failed<br>
+                        File: ${testFrame}<br>
+                        Error: ${event.detail?.message || 'Unknown error'}<br>
+                        Check: File format and file path
+                    </div>
+                `;
+            };
+            
+            viewer.addEventListener('load', onLoad);
+            viewer.addEventListener('error', onError);
+            
+            // Load the frame
+            viewer.src = testFrame;
+            currentFrame = 1;
+            updateFrameDisplay();
         }
 
+        // Enable animation controls
+        function enableControls() {
+            const controls = document.querySelectorAll('.control-btn');
+            controls.forEach(btn => btn.disabled = false);
+            statusText.textContent = statusText.textContent + ' • Animation controls ready';
+        }
+
+        // Enable AR functionality
+        function enableAR() {
+            arButton.disabled = false;
+            arStatus.textContent = 'AR ready! Tap to launch';
+            arButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
+        }
+
+        // Animation controls
         function togglePlayback() {
+            if (!filesWorkingCorrectly) {
+                showError('Please test file loading first');
+                return;
+            }
+            
             isPlaying = !isPlaying;
             playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
             
             if (isPlaying) {
-                lastFrameTime = Date.now();
-                playAnimation();
-            } else if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
+                startAnimation();
+            } else {
+                stopAnimation();
             }
         }
 
-        // Timeline interaction
-        function seekFrame(event) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const position = (event.clientX - rect.left) / rect.width;
-            const targetFrame = Math.max(1, Math.round(position * totalFrames));
-            setFrame(targetFrame);
+        function startAnimation() {
+            if (animationInterval) clearInterval(animationInterval);
+            
+            const frameDuration = 1000 / targetFPS;
+            lastFrameTime = performance.now();
+            
+            animationInterval = setInterval(() => {
+                const currentTime = performance.now();
+                const actualFPS = Math.round(1000 / (currentTime - lastFrameTime));
+                fpsDisplay.textContent = actualFPS;
+                lastFrameTime = currentTime;
+                
+                nextFrame();
+            }, frameDuration);
+        }
+
+        function stopAnimation() {
+            if (animationInterval) {
+                clearInterval(animationInterval);
+                animationInterval = null;
+            }
+        }
+
+        function nextFrame() {
+            currentFrame = (currentFrame % totalFrames) + 1;
+            updateFrame();
+        }
+
+        function previousFrame() {
+            currentFrame = currentFrame > 1 ? currentFrame - 1 : totalFrames;
+            updateFrame();
+        }
+
+        function resetToFrame1() {
+            currentFrame = 1;
+            updateFrame();
+        }
+
+        function updateFrame() {
+            const frameFile = `data/frame_${String(currentFrame).padStart(6, '0')}.glb`;
+            viewer.src = frameFile;
+            updateFrameDisplay();
         }
 
         function updateFrameDisplay() {
-            frameCounter.textContent = `Frame ${currentFrame} / ${totalFrames}`;
-            const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
-            timelineProgressAR.style.width = `${Math.max(0, progress)}%`;
-        }
-
-        // Surface grid toggle
-        function toggleGrid() {
-            if (surfaceGrid) {
-                surfaceGrid.visible = !surfaceGrid.visible;
-                updateStatus(surfaceGrid.visible ? 'Surface grid enabled' : 'Surface grid disabled');
+            currentFrameSpan.textContent = currentFrame;
+            totalFramesSpan.textContent = totalFrames;
+            
+            if (totalFrames > 0) {
+                const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
+                timelineProgress.style.width = `${Math.max(0, progress)}%`;
             }
         }
 
-        // Object manipulation
-        function resetObject() {
-            if (currentModel && lastHitResult) {
-                currentModel.position.copy(lastHitResult.position);
-                currentModel.scale.setScalar(0.1);
-                currentModel.rotation.set(0, 0, 0);
-                updateStatus('Object reset to original position');
-            }
-        }
-
-        // WebXR AR Session
-        async function startAR() {
-            if (!navigator.xr) {
-                showError('WebXR not supported on this device');
+        function seekToPosition(event) {
+            if (!filesWorkingCorrectly) {
+                showError('Please test file loading first');
                 return;
             }
+            
+            const rect = event.currentTarget.getBoundingClientRect();
+            const position = (event.clientX - rect.left) / rect.width;
+            currentFrame = Math.max(1, Math.round(position * totalFrames));
+            updateFrame();
+        }
 
+        // Launch AR
+        function launchAR() {
+            if (!filesWorkingCorrectly) {
+                showError('Please test file loading first');
+                return;
+            }
+            
+            if (!viewer.canActivateAR) {
+                showError('AR not available. Ensure you\'re on a compatible device with HTTPS.');
+                return;
+            }
+            
             try {
-                updateLoadingText('Requesting AR session...');
-                loadingOverlay.classList.remove('hidden');
-
-                const supported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (!supported) {
-                    throw new Error('AR not supported');
-                }
-
-                arSession = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test']
-                });
-
-                await renderer.xr.setSession(arSession);
-                
-                // Initialize hit testing
-                const referenceSpace = await arSession.requestReferenceSpace('viewer');
-                hitTestSource = await arSession.requestHitTestSource({ space: referenceSpace });
-
-                // Set up AR session event listeners
-                arSession.addEventListener('end', onARSessionEnd);
-
-                // Show AR controls
-                arControls.classList.add('active');
-                loadingOverlay.classList.add('hidden');
-                
-                // Load first frame
-                await setFrame(1);
-                
-                updateStatus('AR session active - Tap to place object');
-                renderer.setAnimationLoop(renderAR);
-
+                viewer.activateAR();
+                arStatus.textContent = 'AR session starting...';
             } catch (error) {
-                console.error('AR initialization failed:', error);
-                showError(`AR failed: ${error.message}`);
-                loadingOverlay.classList.add('hidden');
+                showError(`AR launch failed: ${error.message}`);
             }
-        }
-
-        // AR render loop
-        function renderAR(timestamp, frame) {
-            if (!frame) return;
-
-            // Hit testing for surface detection
-            if (hitTestSource && !objectPlaced) {
-                const hitTestResults = frame.getHitTestResults(hitTestSource);
-                
-                if (hitTestResults.length > 0) {
-                    const hit = hitTestResults[0];
-                    const referenceSpace = renderer.xr.getReferenceSpace();
-                    const hitPose = hit.getPose(referenceSpace);
-                    
-                    if (hitPose) {
-                        // Update surface grid position
-                        if (surfaceGrid) {
-                            surfaceGrid.position.setFromMatrixPosition(hitPose.transform.matrix);
-                            surfaceGrid.visible = true;
-                        }
-                        
-                        lastHitResult = {
-                            position: new THREE.Vector3().setFromMatrixPosition(hitPose.transform.matrix),
-                            quaternion: new THREE.Quaternion().setFromRotationMatrix(hitPose.transform.matrix)
-                        };
-                    }
-                }
-            }
-
-            renderer.render(scene, camera);
-        }
-
-        // Touch interaction for AR
-        canvas.addEventListener('touchstart', onARTouch);
-
-        function onARTouch(event) {
-            if (!arSession || !lastHitResult) return;
-            
-            event.preventDefault();
-            
-            if (!objectPlaced && currentModel) {
-                // Place object at hit location
-                currentModel.position.copy(lastHitResult.position);
-                currentModel.scale.setScalar(0.1);
-                objectPlaced = true;
-                
-                if (surfaceGrid) {
-                    surfaceGrid.visible = false;
-                }
-                
-                updateStatus('Object placed - Use controls to manipulate');
-            }
-        }
-
-        // Exit AR
-        function exitAR() {
-            if (arSession) {
-                arSession.end();
-            }
-        }
-
-        function onARSessionEnd() {
-            arControls.classList.remove('active');
-            renderer.setAnimationLoop(null);
-            objectPlaced = false;
-            
-            if (surfaceGrid) {
-                surfaceGrid.visible = false;
-            }
-            
-            updateStatus('AR session ended');
         }
 
         // Utility functions
-        function updateLoadingText(text) {
-            loadingText.textContent = text;
-        }
-
-        function updateStatus(text) {
-            statusText.textContent = text;
-        }
-
         function showError(message) {
             const existingError = document.querySelector('.error-message');
             if (existingError) existingError.remove();
@@ -626,59 +605,46 @@
             setTimeout(() => errorDiv.remove(), 5000);
         }
 
-        // Test function to verify frame loading
-        async function testFirstFrame() {
-            try {
-                updateLoadingText('Testing frame 1 loading...');
-                loadingOverlay.classList.remove('hidden');
-                
-                console.log('Attempting to load: data/frame-000001.glb');
-                await setFrame(1);
-                
-                updateStatus('✅ Frame 1 loaded successfully!');
-                loadingOverlay.classList.add('hidden');
-                
-                // Enable AR button if test passes
-                arButton.disabled = false;
-                
-            } catch (error) {
-                console.error('Frame loading test failed:', error);
-                showError(`Frame loading failed: ${error.message}`);
-                loadingOverlay.classList.add('hidden');
-            }
+        function showSuccess(message) {
+            const existingSuccess = document.querySelector('.success-message');
+            if (existingSuccess) existingSuccess.remove();
+            
+            const successDiv = document.createElement('div');
+            successDiv.className = 'success-message';
+            successDiv.textContent = message;
+            document.body.insertBefore(successDiv, document.querySelector('.viewer-container'));
+            
+            setTimeout(() => successDiv.remove(), 3000);
         }
 
-        // Device detection and compatibility
-        function checkCompatibility() {
-            if (!navigator.xr) {
-                updateStatus('WebXR not supported');
-                arButton.disabled = true;
-                return;
+        // AR event listeners
+        viewer.addEventListener('ar-status', (event) => {
+            console.log('AR Status:', event.detail.status);
+            
+            switch(event.detail.status) {
+                case 'session-started':
+                    arStatus.textContent = 'AR session active! Use timeline to change frames';
+                    showSuccess('AR session started successfully!');
+                    break;
+                case 'not-presenting':
+                    arStatus.textContent = 'AR session ended';
+                    break;
+                case 'failed':
+                    arStatus.textContent = 'AR session failed';
+                    showError('AR session failed to start');
+                    break;
             }
-
-            navigator.xr.isSessionSupported('immersive-ar').then(supported => {
-                if (supported) {
-                    updateStatus('AR supported • Test frame loading first');
-                    // Don't enable AR button yet - require frame test first
-                } else {
-                    updateStatus('AR not supported on this device');
-                    arButton.disabled = true;
-                }
-            });
-        }
-
-        // Window resize handler
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
         });
 
         // Initialize
         window.addEventListener('load', () => {
-            initScene();
-            checkCompatibility();
+            detectDevice();
             loadingOverlay.classList.add('hidden');
+            
+            // Auto-run direct access test after a moment
+            setTimeout(() => {
+                testDirectAccess();
+            }, 1000);
         });
     </script>
 </body>
