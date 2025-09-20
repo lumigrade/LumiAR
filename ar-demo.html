@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV Frame Sequence AR Player</title>
-    
-    <!-- Model-viewer -->
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <title>4DVV AR - Three.js WebXR</title>
     
     <style>
         * {
@@ -27,12 +24,8 @@
             text-align: center;
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
-        }
-
-        .header h1 {
-            font-size: 24px;
-            margin-bottom: 10px;
-            font-weight: 600;
+            position: relative;
+            z-index: 100;
         }
 
         .viewer-container {
@@ -44,76 +37,92 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         }
 
-        model-viewer {
+        #canvas3d {
             width: 100%;
             height: 100%;
-            background-color: #1a1a1a;
-            --progress-bar-color: #4CAF50;
+            display: block;
+            background: #1a1a1a;
         }
 
-        .animation-controls {
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.2);
-            text-align: center;
+        .ar-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 20px;
+            padding: 15px;
+            display: none;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
 
-        .playback-controls {
+        .ar-controls.active {
             display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .timeline-ar {
+            width: 300px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .timeline-progress-ar {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            border-radius: 20px;
+            width: 0%;
+            position: relative;
+        }
+
+        .timeline-thumb {
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .frame-counter {
+            color: white;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .manipulation-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
         }
 
         .control-btn {
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
             color: white;
-            padding: 12px 20px;
-            border-radius: 25px;
-            font-size: 14px;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
         .control-btn:hover, .control-btn.active {
-            background: rgba(76, 175, 80, 0.3);
-            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.5);
         }
 
-        .timeline-container {
-            margin: 20px 0;
-        }
-
-        .timeline {
-            width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            cursor: pointer;
-            position: relative;
-        }
-
-        .timeline-progress {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #45a049);
-            border-radius: 4px;
-            width: 0%;
-            transition: width 0.1s ease;
-        }
-
-        .frame-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            margin-top: 10px;
-            opacity: 0.8;
-        }
-
-        .ar-section {
+        .main-controls {
             padding: 20px;
             text-align: center;
-            background: rgba(0, 0, 0, 0.2);
         }
 
         .ar-button {
@@ -126,28 +135,25 @@
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .ar-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
         }
 
         .ar-button:disabled {
             background: rgba(255, 255, 255, 0.2);
             box-shadow: none;
             cursor: not-allowed;
+            transform: none;
         }
 
-        .status-bar {
-            padding: 15px 20px;
-            background: rgba(0, 0, 0, 0.3);
-            font-size: 12px;
-            text-align: center;
-        }
-
-        .error-message {
-            color: #ff6b6b;
-            padding: 10px;
-            text-align: center;
-            background: rgba(255, 107, 107, 0.1);
-            border-radius: 10px;
-            margin: 10px 20px;
+        .status-info {
+            margin-top: 15px;
+            font-size: 14px;
+            opacity: 0.8;
         }
 
         .loading-overlay {
@@ -183,332 +189,431 @@
             100% { transform: rotate(360deg); }
         }
 
-        .quick-test-section {
-            padding: 20px;
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-            margin: 20px;
-            border-radius: 15px;
+        .surface-grid {
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
         }
 
-        .quick-test-section h3 {
-            color: #FFC107;
-            margin-bottom: 15px;
+        .surface-grid.visible {
+            opacity: 0.8;
         }
 
-        .test-options {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .test-btn {
-            background: rgba(255, 193, 7, 0.2);
-            border: 1px solid #FFC107;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            cursor: pointer;
+        .error-message {
+            color: #ff6b6b;
+            padding: 10px;
+            text-align: center;
+            background: rgba(255, 107, 107, 0.1);
+            border-radius: 10px;
+            margin: 10px 20px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV Frame Sequence Player</h1>
-        <p>Animated Gaussian Splatting for Mobile AR</p>
-    </div>
-
-    <!-- Quick Test Section -->
-    <div class="quick-test-section">
-        <h3>⚡ Quick Test Options</h3>
-        <div class="test-options">
-            <button class="test-btn" onclick="loadSingleFrame()">📋 Single Frame Test</button>
-            <button class="test-btn" onclick="loadSmallSequence()">🎬 10-Frame Preview</button>
-            <button class="test-btn" onclick="enableARTest()">📱 AR Compatibility Check</button>
-        </div>
-        <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
-            Start with Single Frame Test to verify AR works, then try animation
-        </div>
+        <h1>🎭 4DVV AR Player - Three.js</h1>
+        <p>Advanced Gaussian Splatting with Full AR Controls</p>
     </div>
 
     <div class="viewer-container">
-        <model-viewer
-            id="frameViewer"
-            src=""
-            alt="4DVV Frame Sequence"
-            
-            ar
-            ar-modes="webxr scene-viewer quick-look"
-            ar-scale="auto"
-            ar-placement="floor"
-            
-            camera-controls
-            auto-rotate
-            auto-rotate-delay="5000"
-            
-            environment-image="neutral"
-            exposure="1.2"
-            shadow-intensity="0.4"
-            
-            loading="eager"
-            reveal="auto"
-            
-            interaction-prompt="when-focused">
-            
-            <div slot="poster" class="loading-overlay" id="loadingOverlay">
-                <div class="spinner"></div>
-                <div id="loadingText">Select a test option above</div>
-            </div>
-        </model-viewer>
-    </div>
-
-    <div class="animation-controls">
-        <div class="playback-controls">
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
-            <button class="control-btn" onclick="previousFrame()" disabled>⏮️ Prev</button>
-            <button class="control-btn" onclick="nextFrame()" disabled>⏭️ Next</button>
-            <button class="control-btn" onclick="resetToFrame1()" disabled>🔄 Reset</button>
-        </div>
+        <canvas id="canvas3d"></canvas>
         
-        <div class="timeline-container">
-            <div class="timeline" onclick="seekToPosition(event)">
-                <div class="timeline-progress" id="timelineProgress"></div>
-            </div>
-            <div class="frame-info">
-                <span>Frame: <span id="currentFrame">0</span> / <span id="totalFrames">0</span></span>
-                <span>FPS: <span id="fpsDisplay">0</span></span>
-            </div>
+        <div class="loading-overlay" id="loadingOverlay">
+            <div class="spinner"></div>
+            <div id="loadingText">Initializing AR system...</div>
         </div>
     </div>
 
-    <div class="ar-section">
-        <button class="ar-button" id="arButton" onclick="launchAR()" disabled>
+    <div class="main-controls">
+        <button class="control-btn" onclick="testFirstFrame()" style="margin-bottom: 10px;">
+            🧪 Test Load Frame 1
+        </button>
+        <br>
+        <button class="ar-button" id="arButton" onclick="startAR()" disabled>
+            🚀 Launch AR Experience
+        </button>">
             🚀 Launch AR Experience
         </button>
-        <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
-            <span id="arStatus">Load content first to enable AR</span>
+        <div class="status-info">
+            <div id="statusText">🧪 Test frame loading first • Then AR will be enabled</div>
+            <div style="margin-top: 5px; font-size: 12px;">
+                Features: Surface Detection • Object Manipulation • 25fps Animation
+            </div>
         </div>
     </div>
 
-    <div class="status-bar">
-        <div id="statusText">Ready to test • iPhone 15 Pro Max detected</div>
+    <!-- AR Controls (shown during AR session) -->
+    <div class="ar-controls" id="arControls">
+        <div class="frame-counter" id="frameCounter">Frame 1 / 400</div>
+        
+        <div class="timeline-ar" id="timelineAR" onclick="seekFrame(event)">
+            <div class="timeline-progress-ar" id="timelineProgressAR">
+                <div class="timeline-thumb"></div>
+            </div>
+        </div>
+        
+        <div class="manipulation-controls">
+            <button class="control-btn" id="playBtn" onclick="togglePlayback()">▶️ Play</button>
+            <button class="control-btn" onclick="toggleGrid()">📐 Grid</button>
+            <button class="control-btn" onclick="resetObject()">🔄 Reset</button>
+            <button class="control-btn" onclick="exitAR()">❌ Exit</button>
+        </div>
     </div>
 
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
+    
     <script>
-        const viewer = document.getElementById('frameViewer');
+        // Global variables
+        let scene, camera, renderer, arSession;
+        let currentModel = null;
+        let currentFrame = 1;
+        let totalFrames = 400;
+        let isPlaying = false;
+        let animationId = null;
+        let frameLoader = new Map(); // Cache for GLB frames
+        let surfaceGrid = null;
+        let manipulationMode = 'none'; // 'move', 'scale', 'rotate'
+        let hitTestSource = null;
+        let lastHitResult = null;
+        let objectPlaced = false;
+
+        // Frame management
+        const PRELOAD_BUFFER = 3; // Preload 3 frames ahead/behind
+        const TARGET_FPS = 25;
+        const FRAME_DURATION = 1000 / TARGET_FPS; // 40ms per frame
+
+        // DOM elements
+        const canvas = document.getElementById('canvas3d');
         const loadingOverlay = document.getElementById('loadingOverlay');
         const loadingText = document.getElementById('loadingText');
-        const currentFrameSpan = document.getElementById('currentFrame');
-        const totalFramesSpan = document.getElementById('totalFrames');
-        const timelineProgress = document.getElementById('timelineProgress');
-        const playBtn = document.getElementById('playBtn');
         const arButton = document.getElementById('arButton');
-        const arStatus = document.getElementById('arStatus');
+        const arControls = document.getElementById('arControls');
+        const frameCounter = document.getElementById('frameCounter');
+        const timelineProgressAR = document.getElementById('timelineProgressAR');
+        const playBtn = document.getElementById('playBtn');
         const statusText = document.getElementById('statusText');
-        const fpsDisplay = document.getElementById('fpsDisplay');
 
-        let isPlaying = false;
-        let currentFrame = 0;
-        let totalFrames = 0;
-        let frameSequence = [];
-        let animationInterval = null;
-        let lastFrameTime = 0;
-        let targetFPS = 15; // Target 15 FPS for mobile
-
-        // Test configurations
-        const testConfigs = {
-            singleFrame: {
-                name: "Single Frame",
-                files: ["frame_000001.glb"], // You'll need to convert one frame
-                description: "Tests basic AR functionality"
-            },
-            smallSequence: {
-                name: "10-Frame Preview", 
-                files: Array.from({length: 10}, (_, i) => `frame_${String(i + 1).padStart(6, '0')}.glb`),
-                description: "Tests animation with reduced frames"
-            }
-        };
-
-        // Device detection
-        function detectDevice() {
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const isAndroid = /Android/.test(navigator.userAgent);
+        // Initialize Three.js scene
+        function initScene() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
             
-            let deviceInfo = 'Unknown Device';
-            if (isIOS) {
-                deviceInfo = 'iOS Device (Quick Look AR)';
-            } else if (isAndroid) {
-                deviceInfo = 'Android Device (WebXR AR)';
-            }
-            
-            statusText.textContent = `${deviceInfo} • HTTPS: ${location.protocol === 'https:' ? '✓' : '✗'}`;
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas, 
+                antialias: true, 
+                alpha: true 
+            });
+            renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
+            renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            // Basic lighting for non-AR mode
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Create surface detection grid
+            createSurfaceGrid();
+
+            updateStatus('Scene initialized');
         }
 
-        // Load single frame for testing
-        function loadSingleFrame() {
-            loadingOverlay.classList.remove('hidden');
-            loadingText.textContent = 'Loading single frame for AR test...';
+        // Create surface detection grid
+        function createSurfaceGrid() {
+            const gridGeometry = new THREE.PlaneGeometry(2, 2, 20, 20);
+            const gridMaterial = new THREE.MeshBasicMaterial({
+                color: 0x4CAF50,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.3
+            });
             
-            // For now, load the combined GLB (you can create individual frames later)
-            viewer.src = 'gaussian_sequence_400_frames_compliant.glb';
-            totalFrames = 1;
-            currentFrame = 1;
-            updateFrameDisplay();
-            enableControls(false); // Disable animation controls for single frame
+            surfaceGrid = new THREE.Mesh(gridGeometry, gridMaterial);
+            surfaceGrid.rotateX(-Math.PI / 2); // Lay flat
+            surfaceGrid.visible = false;
+            scene.add(surfaceGrid);
         }
 
-        // Load small sequence for animation testing
-        function loadSmallSequence() {
-            showError('Individual frame GLBs needed for animation. Current: Combined 400-frame GLB');
-        }
+        // Load GLB frame
+        async function loadFrame(frameNumber) {
+            return new Promise((resolve, reject) => {
+                // Check cache first
+                if (frameLoader.has(frameNumber)) {
+                    resolve(frameLoader.get(frameNumber));
+                    return;
+                }
 
-        // Enable AR compatibility check
-        function enableARTest() {
-            if (location.protocol !== 'https:') {
-                showError('AR requires HTTPS. Use: https://your-ip:port/ instead of http://');
-                return;
-            }
-            
-            checkARCapabilities();
-        }
-
-        // Check AR capabilities
-        function checkARCapabilities() {
-            loadingText.textContent = 'Checking AR compatibility...';
-            
-            // Load a simple test model first
-            viewer.src = 'gaussian_sequence_400_frames_compliant.glb';
-            
-            viewer.addEventListener('load', function onLoad() {
-                viewer.removeEventListener('load', onLoad);
-                loadingOverlay.classList.add('hidden');
+                const loader = new THREE.GLTFLoader();
+                const frameFile = `data/frame-${String(frameNumber).padStart(6, '0')}.glb`;
                 
-                setTimeout(() => {
-                    if (viewer.canActivateAR) {
-                        arStatus.textContent = 'AR Ready! Tap button to start';
-                        arButton.disabled = false;
-                        arButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
-                    } else {
-                        arStatus.textContent = 'AR not available on this device/browser';
-                        showError('AR might not be supported. Try Safari on iOS or Chrome on Android.');
+                console.log(`Loading frame ${frameNumber} from: ${frameFile}`);
+                
+                loader.load(
+                    frameFile,
+                    (gltf) => {
+                        const model = gltf.scene.clone();
+                        frameLoader.set(frameNumber, model);
+                        
+                        // Limit cache size (keep only recent frames)
+                        if (frameLoader.size > PRELOAD_BUFFER * 6) {
+                            const oldestFrame = Math.max(1, frameNumber - PRELOAD_BUFFER * 3);
+                            frameLoader.delete(oldestFrame);
+                        }
+                        
+                        resolve(model);
+                    },
+                    (progress) => {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                        updateLoadingText(`Loading frame ${frameNumber}: ${percent}%`);
+                    },
+                    (error) => {
+                        console.error(`Failed to load frame ${frameNumber} from ${frameFile}:`, error);
+                        showError(`Frame ${frameNumber} not found. Check if data/frame-${String(frameNumber).padStart(6, '0')}.glb exists`);
+                        reject(error);
                     }
-                }, 1000);
-            });
-
-            viewer.addEventListener('error', function onError(event) {
-                viewer.removeEventListener('error', onError);
-                showError(`Model loading failed: ${event.detail || 'Unknown error'}`);
+                );
             });
         }
 
-        // Animation controls (for future individual frame implementation)
-        function togglePlayback() {
-            if (totalFrames <= 1) return;
+        // Preload frames around current frame
+        async function preloadFrames(centerFrame) {
+            const promises = [];
             
+            for (let i = -PRELOAD_BUFFER; i <= PRELOAD_BUFFER; i++) {
+                const frameNum = centerFrame + i;
+                if (frameNum >= 1 && frameNum <= totalFrames && !frameLoader.has(frameNum)) {
+                    promises.push(loadFrame(frameNum).catch(() => {})); // Ignore errors
+                }
+            }
+            
+            await Promise.allSettled(promises);
+        }
+
+        // Set current frame
+        async function setFrame(frameNumber) {
+            if (frameNumber < 1 || frameNumber > totalFrames) return;
+            
+            try {
+                const newModel = await loadFrame(frameNumber);
+                
+                // Remove current model
+                if (currentModel) {
+                    scene.remove(currentModel);
+                }
+                
+                // Add new model
+                currentModel = newModel.clone();
+                
+                // Apply current position/scale/rotation if object was placed
+                if (objectPlaced && lastHitResult) {
+                    currentModel.position.copy(lastHitResult.position);
+                    currentModel.scale.setScalar(0.1); // Start small for mobile
+                }
+                
+                scene.add(currentModel);
+                currentFrame = frameNumber;
+                
+                updateFrameDisplay();
+                preloadFrames(frameNumber); // Preload nearby frames
+                
+            } catch (error) {
+                console.error('Error setting frame:', error);
+                showError(`Failed to load frame ${frameNumber}`);
+            }
+        }
+
+        // Animation playback
+        let lastFrameTime = 0;
+        function playAnimation() {
+            if (!isPlaying) return;
+            
+            const currentTime = Date.now();
+            if (currentTime - lastFrameTime >= FRAME_DURATION) {
+                const nextFrame = currentFrame >= totalFrames ? 1 : currentFrame + 1;
+                setFrame(nextFrame);
+                lastFrameTime = currentTime;
+            }
+            
+            animationId = requestAnimationFrame(playAnimation);
+        }
+
+        function togglePlayback() {
             isPlaying = !isPlaying;
             playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
             
             if (isPlaying) {
-                startAnimation();
-            } else {
-                stopAnimation();
+                lastFrameTime = Date.now();
+                playAnimation();
+            } else if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
             }
         }
 
-        function startAnimation() {
-            if (animationInterval) clearInterval(animationInterval);
-            
-            const frameDuration = 1000 / targetFPS;
-            lastFrameTime = performance.now();
-            
-            animationInterval = setInterval(() => {
-                const currentTime = performance.now();
-                const actualFPS = Math.round(1000 / (currentTime - lastFrameTime));
-                fpsDisplay.textContent = actualFPS;
-                lastFrameTime = currentTime;
-                
-                nextFrame();
-            }, frameDuration);
-        }
-
-        function stopAnimation() {
-            if (animationInterval) {
-                clearInterval(animationInterval);
-                animationInterval = null;
-            }
-        }
-
-        function nextFrame() {
-            if (totalFrames <= 1) return;
-            currentFrame = (currentFrame % totalFrames) + 1;
-            updateFrame();
-        }
-
-        function previousFrame() {
-            if (totalFrames <= 1) return;
-            currentFrame = currentFrame > 1 ? currentFrame - 1 : totalFrames;
-            updateFrame();
-        }
-
-        function resetToFrame1() {
-            currentFrame = 1;
-            updateFrame();
-        }
-
-        function updateFrame() {
-            // This would load individual frame GLBs when available
-            // viewer.src = `frame_${String(currentFrame).padStart(6, '0')}.glb`;
-            updateFrameDisplay();
+        // Timeline interaction
+        function seekFrame(event) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const position = (event.clientX - rect.left) / rect.width;
+            const targetFrame = Math.max(1, Math.round(position * totalFrames));
+            setFrame(targetFrame);
         }
 
         function updateFrameDisplay() {
-            currentFrameSpan.textContent = currentFrame;
-            totalFramesSpan.textContent = totalFrames;
-            
-            if (totalFrames > 0) {
-                const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
-                timelineProgress.style.width = `${Math.max(0, progress)}%`;
+            frameCounter.textContent = `Frame ${currentFrame} / ${totalFrames}`;
+            const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
+            timelineProgressAR.style.width = `${Math.max(0, progress)}%`;
+        }
+
+        // Surface grid toggle
+        function toggleGrid() {
+            if (surfaceGrid) {
+                surfaceGrid.visible = !surfaceGrid.visible;
+                updateStatus(surfaceGrid.visible ? 'Surface grid enabled' : 'Surface grid disabled');
             }
         }
 
-        function seekToPosition(event) {
-            if (totalFrames <= 1) return;
-            
-            const rect = event.currentTarget.getBoundingClientRect();
-            const position = (event.clientX - rect.left) / rect.width;
-            currentFrame = Math.max(1, Math.round(position * totalFrames));
-            updateFrame();
-        }
-
-        function enableControls(animated = true) {
-            const controls = document.querySelectorAll('.control-btn');
-            controls.forEach(btn => btn.disabled = !animated);
-            
-            if (!animated) {
-                // Single frame mode - enable AR immediately
-                arButton.disabled = false;
-                arStatus.textContent = 'Single frame loaded - AR ready!';
+        // Object manipulation
+        function resetObject() {
+            if (currentModel && lastHitResult) {
+                currentModel.position.copy(lastHitResult.position);
+                currentModel.scale.setScalar(0.1);
+                currentModel.rotation.set(0, 0, 0);
+                updateStatus('Object reset to original position');
             }
         }
 
-        // Launch AR
-        function launchAR() {
-            if (!viewer.canActivateAR) {
-                showError('AR not available. Check device compatibility and HTTPS.');
+        // WebXR AR Session
+        async function startAR() {
+            if (!navigator.xr) {
+                showError('WebXR not supported on this device');
                 return;
             }
-            
+
             try {
-                viewer.activateAR();
-                arStatus.textContent = 'AR session starting...';
+                updateLoadingText('Requesting AR session...');
+                loadingOverlay.classList.remove('hidden');
+
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    throw new Error('AR not supported');
+                }
+
+                arSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local', 'hit-test']
+                });
+
+                await renderer.xr.setSession(arSession);
+                
+                // Initialize hit testing
+                const referenceSpace = await arSession.requestReferenceSpace('viewer');
+                hitTestSource = await arSession.requestHitTestSource({ space: referenceSpace });
+
+                // Set up AR session event listeners
+                arSession.addEventListener('end', onARSessionEnd);
+
+                // Show AR controls
+                arControls.classList.add('active');
+                loadingOverlay.classList.add('hidden');
+                
+                // Load first frame
+                await setFrame(1);
+                
+                updateStatus('AR session active - Tap to place object');
+                renderer.setAnimationLoop(renderAR);
+
             } catch (error) {
-                showError(`AR launch failed: ${error.message}`);
+                console.error('AR initialization failed:', error);
+                showError(`AR failed: ${error.message}`);
+                loadingOverlay.classList.add('hidden');
             }
         }
 
-        // Error handling
+        // AR render loop
+        function renderAR(timestamp, frame) {
+            if (!frame) return;
+
+            // Hit testing for surface detection
+            if (hitTestSource && !objectPlaced) {
+                const hitTestResults = frame.getHitTestResults(hitTestSource);
+                
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const referenceSpace = renderer.xr.getReferenceSpace();
+                    const hitPose = hit.getPose(referenceSpace);
+                    
+                    if (hitPose) {
+                        // Update surface grid position
+                        if (surfaceGrid) {
+                            surfaceGrid.position.setFromMatrixPosition(hitPose.transform.matrix);
+                            surfaceGrid.visible = true;
+                        }
+                        
+                        lastHitResult = {
+                            position: new THREE.Vector3().setFromMatrixPosition(hitPose.transform.matrix),
+                            quaternion: new THREE.Quaternion().setFromRotationMatrix(hitPose.transform.matrix)
+                        };
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // Touch interaction for AR
+        canvas.addEventListener('touchstart', onARTouch);
+
+        function onARTouch(event) {
+            if (!arSession || !lastHitResult) return;
+            
+            event.preventDefault();
+            
+            if (!objectPlaced && currentModel) {
+                // Place object at hit location
+                currentModel.position.copy(lastHitResult.position);
+                currentModel.scale.setScalar(0.1);
+                objectPlaced = true;
+                
+                if (surfaceGrid) {
+                    surfaceGrid.visible = false;
+                }
+                
+                updateStatus('Object placed - Use controls to manipulate');
+            }
+        }
+
+        // Exit AR
+        function exitAR() {
+            if (arSession) {
+                arSession.end();
+            }
+        }
+
+        function onARSessionEnd() {
+            arControls.classList.remove('active');
+            renderer.setAnimationLoop(null);
+            objectPlaced = false;
+            
+            if (surfaceGrid) {
+                surfaceGrid.visible = false;
+            }
+            
+            updateStatus('AR session ended');
+        }
+
+        // Utility functions
+        function updateLoadingText(text) {
+            loadingText.textContent = text;
+        }
+
+        function updateStatus(text) {
+            statusText.textContent = text;
+        }
+
         function showError(message) {
             const existingError = document.querySelector('.error-message');
             if (existingError) existingError.remove();
@@ -521,30 +626,60 @@
             setTimeout(() => errorDiv.remove(), 5000);
         }
 
-        // AR event listeners
-        viewer.addEventListener('ar-status', (event) => {
-            console.log('AR Status:', event.detail.status);
-            
-            switch(event.detail.status) {
-                case 'session-started':
-                    arStatus.textContent = 'AR session active!';
-                    break;
-                case 'not-presenting':
-                    arStatus.textContent = 'AR session ended';
-                    break;
-                case 'failed':
-                    arStatus.textContent = 'AR session failed';
-                    break;
+        // Test function to verify frame loading
+        async function testFirstFrame() {
+            try {
+                updateLoadingText('Testing frame 1 loading...');
+                loadingOverlay.classList.remove('hidden');
+                
+                console.log('Attempting to load: data/frame-000001.glb');
+                await setFrame(1);
+                
+                updateStatus('✅ Frame 1 loaded successfully!');
+                loadingOverlay.classList.add('hidden');
+                
+                // Enable AR button if test passes
+                arButton.disabled = false;
+                
+            } catch (error) {
+                console.error('Frame loading test failed:', error);
+                showError(`Frame loading failed: ${error.message}`);
+                loadingOverlay.classList.add('hidden');
             }
+        }
+
+        // Device detection and compatibility
+        function checkCompatibility() {
+            if (!navigator.xr) {
+                updateStatus('WebXR not supported');
+                arButton.disabled = true;
+                return;
+            }
+
+            navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+                if (supported) {
+                    updateStatus('AR supported • Test frame loading first');
+                    // Don't enable AR button yet - require frame test first
+                } else {
+                    updateStatus('AR not supported on this device');
+                    arButton.disabled = true;
+                }
+            });
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvas.offsetWidth, canvas.offsetHeight);
         });
 
         // Initialize
-        detectDevice();
-        
-        // Auto-load single frame test for immediate AR testing
-        setTimeout(() => {
-            loadSingleFrame();
-        }, 1000);
+        window.addEventListener('load', () => {
+            initScene();
+            checkCompatibility();
+            loadingOverlay.classList.add('hidden');
+        });
     </script>
 </body>
 </html>
