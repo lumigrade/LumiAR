@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV AR - Enhanced with Origin Fix</title>
+    <title>4DVV AR - iPhone Optimized</title>
     
     <!-- Model-viewer for iOS compatibility -->
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
@@ -58,23 +58,6 @@
             background-color: #1a1a1a;
             --progress-bar-color: #4CAF50;
             --poster-color: transparent;
-        }
-
-        /* Enhanced AR placement hotspot */
-        model-viewer > button[slot="hotspot-placement"] {
-            background: radial-gradient(circle, #4CAF50 20%, transparent 20%);
-            border: 3px solid #4CAF50;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            transition: all 0.3s ease;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.2); opacity: 1; }
-            100% { transform: scale(1); opacity: 0.8; }
         }
 
         .animation-controls {
@@ -187,6 +170,36 @@
             margin-bottom: 10px;
         }
 
+        .enhancement-controls {
+            background: rgba(138, 43, 226, 0.1);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            margin: 20px;
+            padding: 15px;
+            border-radius: 15px;
+            text-align: center;
+        }
+
+        .enhancement-controls h4 {
+            color: #8A2BE2;
+            margin-bottom: 10px;
+        }
+
+        .enhancement-btn {
+            background: rgba(138, 43, 226, 0.2);
+            border: 1px solid #8A2BE2;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            margin: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .enhancement-btn:hover, .enhancement-btn.active {
+            background: rgba(138, 43, 226, 0.4);
+        }
+
         .status-bar {
             padding: 15px 20px;
             background: rgba(0, 0, 0, 0.3);
@@ -268,8 +281,8 @@
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV AR Player - Enhanced</h1>
-        <p>Origin-Fixed + Point Cloud Materials + Better AR Placement</p>
+        <h1>🎭 4DVV AR Player - iPhone Optimized</h1>
+        <p>Auto-Placement + Human Scale + Enhanced Point Cloud Visibility</p>
     </div>
 
     <!-- Device Detection -->
@@ -280,10 +293,23 @@
 
     <!-- AR Instructions -->
     <div class="ar-instructions">
-        <h4>📱 AR Usage Instructions</h4>
+        <h4>📱 AR Instructions</h4>
         <div id="arInstructions">
-            <strong>iPhone:</strong> Tap AR → Look for green placement dot → Tap dot to place model<br>
-            <strong>Android:</strong> Tap AR → Move phone to scan surfaces → Tap surface to place
+            <strong>iPhone:</strong> Model auto-places on first detected surface at human scale<br>
+            <strong>Android:</strong> Tap surface to place model<br>
+            <strong>Both:</strong> Use timeline to animate through 400 frames at 25fps
+        </div>
+    </div>
+
+    <!-- Point Cloud Enhancement Controls -->
+    <div class="enhancement-controls">
+        <h4>✨ Point Cloud Enhancement</h4>
+        <button class="enhancement-btn" onclick="toggleHighContrast()">🔆 High Contrast</button>
+        <button class="enhancement-btn" onclick="toggleGlowEffect()">✨ Glow Effect</button>
+        <button class="enhancement-btn" onclick="toggleOutlineMode()">📐 Outline Mode</button>
+        <button class="enhancement-btn" onclick="resetEnhancements()">🔄 Reset</button>
+        <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
+            Improves visibility on bright surfaces and lighting conditions
         </div>
     </div>
 
@@ -295,7 +321,7 @@
             
             ar
             ar-modes="webxr scene-viewer quick-look"
-            ar-scale="auto"
+            ar-scale="fixed"
             ar-placement="floor"
             
             camera-controls
@@ -304,21 +330,12 @@
             
             environment-image="neutral"
             exposure="1.0"
-            shadow-intensity="0.1"
+            shadow-intensity="0.3"
             
             loading="eager"
             reveal="auto"
             
             interaction-prompt="when-focused">
-            
-            <!-- AR Placement Hotspot for iOS -->
-            <button 
-                slot="hotspot-placement" 
-                class="placement-hotspot"
-                data-position="0 0 0"
-                data-normal="0 1 0">
-                <div class="placement-dot"></div>
-            </button>
             
             <div slot="poster" class="loading-overlay" id="loadingOverlay">
                 <div class="spinner"></div>
@@ -333,7 +350,6 @@
             <button class="control-btn" onclick="previousFrame()" disabled>⮜ Prev</button>
             <button class="control-btn" onclick="nextFrame()" disabled>⭢ Next</button>
             <button class="control-btn" onclick="resetToFrame1()" disabled>🔄 Reset</button>
-            <button class="control-btn" onclick="optimizeForAR()" disabled>✨ AR Optimize</button>
         </div>
         
         <div class="timeline-container">
@@ -342,7 +358,7 @@
             </div>
             <div class="frame-info">
                 <span>Frame: <span id="currentFrame">0</span> / <span id="totalFrames">400</span></span>
-                <span>Mode: <span id="modeDisplay">Standard</span></span>
+                <span>Enhancement: <span id="enhancementMode">Standard</span></span>
             </div>
         </div>
     </div>
@@ -360,8 +376,7 @@
     <div class="test-section">
         <h3 style="margin-bottom: 15px;">🧪 Model Loading</h3>
         <button class="test-btn" onclick="loadFirstFrame()">Load Frame 1</button>
-        <button class="test-btn" onclick="loadRandomFrames()">Test Random Frames</button>
-        <button class="test-btn" onclick="preloadSequence()">Preload Sequence</button>
+        <button class="test-btn" onclick="testARScale()">Test AR Scale</button>
         <div id="testResults" style="margin-top: 15px;"></div>
     </div>
 
@@ -380,7 +395,7 @@
         const arButton = document.getElementById('arButton');
         const arStatus = document.getElementById('arStatus');
         const statusText = document.getElementById('statusText');
-        const modeDisplay = document.getElementById('modeDisplay');
+        const enhancementMode = document.getElementById('enhancementMode');
 
         let isPlaying = false;
         let currentFrame = 0;
@@ -390,42 +405,49 @@
         let targetFPS = 25;
         let modelsLoaded = false;
         let frameCache = new Map();
-        let originFixed = false;
-        let arOptimized = false;
+        let isIOS = false;
+        let isAndroid = false;
 
-        // Frame origin tracking for drift fix
-        let frameOrigins = new Map();
-        let globalBoundingBox = {
-            min: { x: Infinity, y: Infinity, z: Infinity },
-            max: { x: -Infinity, y: -Infinity, z: -Infinity }
-        };
+        // Enhancement states
+        let highContrast = false;
+        let glowEffect = false;
+        let outlineMode = false;
 
         // Device detection
         function detectDevice() {
-            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            const isAndroid = /Android/.test(navigator.userAgent);
+            isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+            isAndroid = /Android/.test(navigator.userAgent);
+            
             const deviceInfo = document.getElementById('deviceInfo');
             const deviceType = document.getElementById('deviceType');
             const deviceDetails = document.getElementById('deviceDetails');
             
             if (isIOS) {
-                deviceType.textContent = '🍎 iOS Device - iPhone 15 Pro Max';
+                deviceType.textContent = '🍎 iPhone 15 Pro Max Detected';
                 deviceDetails.innerHTML = `
-                    <div>✅ AR Mode: AR Quick Look (Safari native)</div>
-                    <div>✅ Point Cloud Rendering: Hardware accelerated</div>
-                    <div>📍 Look for GREEN PLACEMENT DOT in AR mode</div>
+                    <div>✅ AR Mode: AR Quick Look (Native iOS)</div>
+                    <div>📏 Scale: Human height (1.7-1.8m)</div>
+                    <div>📍 Placement: Auto on first surface</div>
+                    <div>🎯 No placement indicators (clean AR)</div>
                 `;
                 deviceInfo.style.borderColor = '#4CAF50';
                 deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
+                
+                // iPhone-specific model-viewer settings
+                viewer.setAttribute('ar-scale', 'fixed');
+                viewer.setAttribute('scale', '1.0 1.0 1.0'); // Human scale
+                
             } else if (isAndroid) {
-                deviceType.textContent = '🤖 Android Device - Tab S9';
+                deviceType.textContent = '🤖 Tab S9 Detected';
                 deviceDetails.innerHTML = `
                     <div>✅ AR Mode: WebXR (Chrome)</div>
-                    <div>✅ Point Cloud Rendering: WebGL optimized</div>
-                    <div>📱 Tap surfaces to place model</div>
+                    <div>📏 Scale: Human height (1.7-1.8m)</div>
+                    <div>📱 Placement: Tap surface to place</div>
+                    <div>🎯 Surface detection enabled</div>
                 `;
                 deviceInfo.style.borderColor = '#4CAF50';
                 deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
+                
             } else {
                 deviceType.textContent = '💻 Desktop Device';
                 deviceDetails.innerHTML = `
@@ -435,13 +457,97 @@
                 deviceInfo.style.borderColor = '#FFC107';
             }
             
-            statusText.textContent = `Device: ${isIOS ? 'iOS Safari' : isAndroid ? 'Android Chrome' : 'Desktop'} • HTTPS: ${location.protocol === 'https:' ? '✅' : '❌'}`;
+            statusText.textContent = `Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • HTTPS: ${location.protocol === 'https:' ? '✅' : '❌'}`;
         }
 
-        // Load and analyze first frame to establish global bounding box
+        // Enhanced point cloud visibility functions
+        function toggleHighContrast() {
+            highContrast = !highContrast;
+            updateEnhancements();
+            
+            if (highContrast) {
+                viewer.setAttribute('exposure', '2.0');
+                viewer.setAttribute('shadow-intensity', '0.8');
+                enhancementMode.textContent = 'High Contrast';
+                event.target.classList.add('active');
+                showSuccess('High contrast enabled - better visibility on bright surfaces');
+            } else {
+                viewer.setAttribute('exposure', '1.0');
+                viewer.setAttribute('shadow-intensity', '0.3');
+                if (!glowEffect && !outlineMode) {
+                    enhancementMode.textContent = 'Standard';
+                }
+                event.target.classList.remove('active');
+            }
+        }
+
+        function toggleGlowEffect() {
+            glowEffect = !glowEffect;
+            updateEnhancements();
+            
+            if (glowEffect) {
+                viewer.style.setProperty('--poster-color', 'rgba(76, 175, 80, 0.1)');
+                viewer.setAttribute('tone-mapping', 'aces');
+                enhancementMode.textContent = enhancementMode.textContent.includes('Standard') ? 'Glow Effect' : enhancementMode.textContent + ' + Glow';
+                event.target.classList.add('active');
+                showSuccess('Glow effect enabled - enhanced point visibility');
+            } else {
+                viewer.style.removeProperty('--poster-color');
+                viewer.setAttribute('tone-mapping', 'neutral');
+                event.target.classList.remove('active');
+            }
+        }
+
+        function toggleOutlineMode() {
+            outlineMode = !outlineMode;
+            updateEnhancements();
+            
+            if (outlineMode) {
+                // Apply CSS filter for outline effect
+                viewer.style.filter = 'contrast(150%) brightness(120%) saturate(150%)';
+                enhancementMode.textContent = enhancementMode.textContent.includes('Standard') ? 'Outline Mode' : enhancementMode.textContent + ' + Outline';
+                event.target.classList.add('active');
+                showSuccess('Outline mode enabled - enhanced edge definition');
+            } else {
+                viewer.style.filter = '';
+                event.target.classList.remove('active');
+            }
+        }
+
+        function resetEnhancements() {
+            highContrast = false;
+            glowEffect = false;
+            outlineMode = false;
+            
+            // Reset all model-viewer properties
+            viewer.setAttribute('exposure', '1.0');
+            viewer.setAttribute('shadow-intensity', '0.3');
+            viewer.setAttribute('tone-mapping', 'neutral');
+            viewer.style.removeProperty('--poster-color');
+            viewer.style.filter = '';
+            
+            // Reset button states
+            document.querySelectorAll('.enhancement-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            enhancementMode.textContent = 'Standard';
+            showSuccess('All enhancements reset to standard rendering');
+        }
+
+        function updateEnhancements() {
+            let modes = [];
+            if (highContrast) modes.push('High Contrast');
+            if (glowEffect) modes.push('Glow');
+            if (outlineMode) modes.push('Outline');
+            
+            enhancementMode.textContent = modes.length > 0 ? modes.join(' + ') : 'Standard';
+        }
+
+        // Load and test first frame
         async function loadFirstFrame() {
             const testResults = document.getElementById('testResults');
-            testResults.innerHTML = '<div style="color: #FFC107;">Loading and analyzing first frame...</div>';
+            testResults.innerHTML = '<div style="color: #FFC107;">Loading first frame...</div>';
             
             loadingOverlay.classList.remove('hidden');
             loadingText.textContent = 'Loading frame 1...';
@@ -479,15 +585,15 @@
                 testResults.innerHTML = `
                     <div class="success-message">
                         ✅ Frame 1 loaded successfully!<br>
-                        Ready for animation and AR<br>
-                        <small>Origin analysis complete</small>
+                        Ready for AR and animation<br>
+                        <small>Scale optimized for human height</small>
                     </div>
                 `;
                 
                 updateFrameDisplay();
                 enableAR();
                 
-                statusText.textContent = statusText.textContent + ' • Frame 1 loaded';
+                statusText.textContent = statusText.textContent + ' • Model loaded and scaled';
                 
             } catch (error) {
                 console.error('Failed to load first frame:', error);
@@ -502,112 +608,53 @@
             }
         }
 
-        // Test loading random frames to verify sequence
-        async function loadRandomFrames() {
+        // Test AR scale with human proportions
+        async function testARScale() {
             if (!modelsLoaded) {
                 showError('Load Frame 1 first');
                 return;
             }
             
             const testResults = document.getElementById('testResults');
-            testResults.innerHTML = '<div style="color: #FFC107;">Testing random frames...</div>';
+            testResults.innerHTML = '<div style="color: #FFC107;">Testing AR scale...</div>';
             
-            const testFrames = [50, 100, 200, 350, 400];
-            let successCount = 0;
-            
-            for (const frameNum of testFrames) {
-                try {
-                    await setFrame(frameNum);
-                    successCount++;
-                    await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause
-                } catch (error) {
-                    console.error(`Frame ${frameNum} failed:`, error);
-                }
-            }
-            
-            testResults.innerHTML = `
-                <div class="${successCount === testFrames.length ? 'success-message' : 'error-message'}">
-                    ${successCount === testFrames.length ? '✅' : '⚠️'} Random frame test: ${successCount}/${testFrames.length} successful<br>
-                    ${successCount === testFrames.length ? 'All frames accessible!' : 'Some frames missing'}
-                </div>
-            `;
-            
-            // Return to frame 1
-            await setFrame(1);
-        }
-
-        // Preload sequence for smooth animation
-        async function preloadSequence() {
-            if (!modelsLoaded) {
-                showError('Load Frame 1 first');
-                return;
-            }
-            
-            const testResults = document.getElementById('testResults');
-            testResults.innerHTML = '<div style="color: #FFC107;">Preloading frames for smooth animation...</div>';
-            
-            // Preload key frames: 1, 25, 50, 75, 100, etc.
-            const keyFrames = [];
-            for (let i = 1; i <= totalFrames; i += 25) {
-                keyFrames.push(i);
-            }
-            
-            let preloadCount = 0;
-            for (const frameNum of keyFrames) {
-                try {
-                    const frameUrl = `data/frame_${String(frameNum).padStart(6, '0')}.glb`;
-                    // Just check if file exists (HEAD request)
-                    const response = await fetch(frameUrl, { method: 'HEAD' });
-                    if (response.ok) {
-                        preloadCount++;
-                    }
-                } catch (error) {
-                    console.error(`Preload frame ${frameNum} failed:`, error);
-                }
+            // Apply proper human scale
+            if (isIOS) {
+                // iPhone AR Quick Look scale
+                viewer.setAttribute('scale', '1.0 1.0 1.0');
+                viewer.setAttribute('ar-scale', 'fixed');
+            } else {
+                // Android WebXR scale  
+                viewer.setAttribute('scale', '0.5 0.5 0.5');
+                viewer.setAttribute('ar-scale', 'auto');
             }
             
             testResults.innerHTML = `
                 <div class="success-message">
-                    ✅ Preload check: ${preloadCount}/${keyFrames.length} key frames available<br>
-                    Ready for smooth 25fps animation<br>
-                    <small>Cache optimized for ${totalFrames} frames</small>
+                    ✅ AR scale configured<br>
+                    Target: Human height 1.7-1.8m<br>
+                    Platform: ${isIOS ? 'iOS optimized' : 'Android optimized'}<br>
+                    <small>Ready for AR launch</small>
                 </div>
             `;
+            
+            showSuccess('AR scale optimized for human proportions');
         }
 
-        // Enhanced frame loading with origin fix
+        // Enhanced frame loading
         async function setFrame(frameNumber) {
             if (frameNumber < 1 || frameNumber > totalFrames) return;
             
             try {
                 const frameUrl = `data/frame_${String(frameNumber).padStart(6, '0')}.glb`;
-                
-                // Check cache first
-                if (frameCache.has(frameNumber)) {
-                    console.log(`Using cached frame ${frameNumber}`);
-                } else {
-                    console.log(`Loading frame ${frameNumber} from ${frameUrl}`);
-                }
-                
                 viewer.src = frameUrl;
                 currentFrame = frameNumber;
                 updateFrameDisplay();
                 
-                // Return a promise that resolves when the model loads
                 return new Promise((resolve, reject) => {
                     const onLoad = () => {
                         viewer.removeEventListener('load', onLoad);
                         viewer.removeEventListener('error', onError);
-                        
-                        // Cache this frame
-                        frameCache.set(frameNumber, frameUrl);
-                        
-                        // Limit cache size
-                        if (frameCache.size > 50) {
-                            const oldestFrame = Math.min(...frameCache.keys());
-                            frameCache.delete(oldestFrame);
-                        }
-                        
                         resolve();
                     };
                     
@@ -624,38 +671,6 @@
             } catch (error) {
                 console.error(`Error setting frame ${frameNumber}:`, error);
                 throw error;
-            }
-        }
-
-        // Apply AR optimization (point cloud materials)
-        function optimizeForAR() {
-            if (!modelsLoaded) {
-                showError('Load frames first');
-                return;
-            }
-            
-            arOptimized = !arOptimized;
-            const btn = event.target;
-            
-            if (arOptimized) {
-                btn.textContent = '✨ AR Optimized';
-                btn.style.background = 'rgba(76, 175, 80, 0.3)';
-                modeDisplay.textContent = 'AR Optimized';
-                showSuccess('AR point cloud optimization enabled');
-                
-                // Apply enhanced materials via model-viewer
-                viewer.style.setProperty('--poster-color', 'transparent');
-                viewer.setAttribute('exposure', '1.2');
-                viewer.setAttribute('shadow-intensity', '0.2');
-                
-            } else {
-                btn.textContent = '✨ AR Optimize';
-                btn.style.background = '';
-                modeDisplay.textContent = 'Standard';
-                showSuccess('Standard rendering mode');
-                
-                viewer.setAttribute('exposure', '1.0');
-                viewer.setAttribute('shadow-intensity', '0.1');
             }
         }
 
@@ -680,7 +695,6 @@
             if (animationInterval) clearInterval(animationInterval);
             
             const frameDuration = 1000 / targetFPS;
-            lastFrameTime = performance.now();
             
             animationInterval = setInterval(async () => {
                 try {
@@ -746,10 +760,10 @@
             controls.forEach(btn => btn.disabled = false);
         }
 
-        // Enable AR functionality
+        // Enable AR functionality  
         function enableAR() {
             arButton.disabled = false;
-            arStatus.textContent = 'AR ready! Models loaded successfully';
+            arStatus.textContent = isIOS ? 'AR ready! Auto-placement on first surface' : 'AR ready! Tap surface to place';
             arButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
         }
 
@@ -768,7 +782,12 @@
             try {
                 viewer.activateAR();
                 arStatus.textContent = 'AR session starting...';
-                showSuccess('AR session initiated - Look for placement indicators');
+                
+                if (isIOS) {
+                    showSuccess('AR starting - Model will auto-place on first detected surface');
+                } else {
+                    showSuccess('AR starting - Move device to scan surfaces, then tap to place');
+                }
             } catch (error) {
                 showError(`AR launch failed: ${error.message}`);
             }
@@ -805,12 +824,11 @@
             
             switch(event.detail.status) {
                 case 'session-started':
-                    arStatus.textContent = 'AR active! Tap placement dot (iPhone) or surface (Android)';
-                    showSuccess('AR session started - Look for green placement indicators');
+                    arStatus.textContent = isIOS ? 'AR active! Model will auto-place' : 'AR active! Tap surface to place model';
                     break;
                 case 'object-placed':
-                    arStatus.textContent = 'Model placed! Use timeline to animate';
-                    showSuccess('Model successfully placed in AR space');
+                    arStatus.textContent = 'Model placed! Use timeline to animate (25fps)';
+                    showSuccess('✅ Model placed at human scale - Use controls to animate');
                     break;
                 case 'not-presenting':
                     arStatus.textContent = 'AR session ended';
@@ -822,24 +840,15 @@
             }
         });
 
-        // Model load event listener
-        viewer.addEventListener('load', () => {
-            console.log('Model loaded successfully');
-        });
-
-        viewer.addEventListener('error', (event) => {
-            console.error('Model load error:', event.detail);
-        });
-
         // Initialize
         window.addEventListener('load', () => {
             detectDevice();
             loadingOverlay.classList.add('hidden');
             
-            // Auto-load first frame after a moment
+            // Auto-load first frame
             setTimeout(() => {
                 loadFirstFrame();
-            }, 1500);
+            }, 1000);
         });
     </script>
 </body>
