@@ -84,12 +84,12 @@
             align-items: center;
             z-index: 100;
             backdrop-filter: blur(10px);
-            max-width: 90vw;
+            max-width: 95vw;
         }
 
         .main-controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
             flex-wrap: wrap;
             justify-content: center;
@@ -200,11 +200,13 @@
             
             .main-controls {
                 gap: 6px;
+                flex-wrap: wrap;
             }
             
             .control-btn {
-                padding: 6px 10px;
-                font-size: 11px;
+                padding: 6px 8px;
+                font-size: 10px;
+                min-width: 60px;
             }
         }
     </style>
@@ -229,8 +231,12 @@
     <div class="controls">
         <div class="main-controls">
             <input type="file" id="fileInput" class="file-input" accept=".splatv" />
-            <button class="control-btn" onclick="document.getElementById('fileInput').click()" disabled id="loadBtn">📁 Load .splatv</button>
-            <button class="control-btn" onclick="loadTestSplatv()" disabled id="testBtn">🧪 Test .splatv</button>
+            <button class="control-btn" onclick="document.getElementById('fileInput').click()" disabled id="loadBtn">📁 Load</button>
+            <button class="control-btn" onclick="loadTestSplatv()" disabled id="testBtn">🧪 Original</button>
+            <button class="control-btn" onclick="loadFixedSplatv()" disabled id="testFixedBtn">🔧 Fixed</button>
+            <button class="control-btn" onclick="loadWorkingExample()" disabled id="exampleBtn">✅ Example</button>
+        </div>
+        <div class="main-controls">
             <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
             <button class="ar-button control-btn" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
         </div>
@@ -278,6 +284,8 @@
         const arButton = document.getElementById('arButton');
         const loadBtn = document.getElementById('loadBtn');
         const testBtn = document.getElementById('testBtn');
+        const testFixedBtn = document.getElementById('testFixedBtn');
+        const exampleBtn = document.getElementById('exampleBtn');
         const playBtn = document.getElementById('playBtn');
         const currentTimeSpan = document.getElementById('currentTime');
         const totalDurationSpan = document.getElementById('totalDuration');
@@ -329,6 +337,8 @@
                 // Enable controls
                 loadBtn.disabled = false;
                 testBtn.disabled = false;
+                testFixedBtn.disabled = false;
+                exampleBtn.disabled = false;
                 
                 startRenderLoop();
 
@@ -420,6 +430,18 @@
         async function loadTestSplatv() {
             updateStatus('Loading Dataset.splatv from ./data folder...');
             await loadSplatvFile('./data/Dataset.splatv', true);
+        }
+
+        // Test function to load fixed Dataset.splatv 
+        async function loadFixedSplatv() {
+            updateStatus('Loading Dataset_fixed.splatv from ./data folder...');
+            await loadSplatvFile('./data/Dataset_fixed.splatv', true);
+        }
+
+        // Test function to load a known working .splatv file
+        async function loadWorkingExample() {
+            updateStatus('Loading working example from HuggingFace...');
+            await loadSplatvFile('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv', true);
         }
 
         // Animation controls
@@ -567,6 +589,8 @@
 
         // Global function exposure
         window.loadTestSplatv = loadTestSplatv;
+        window.loadFixedSplatv = loadFixedSplatv;
+        window.loadWorkingExample = loadWorkingExample;
         window.togglePlayback = togglePlayback;
         window.seekTime = seekTime;
         window.startAR = startAR;
