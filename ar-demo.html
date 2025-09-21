@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV AR - gsplat.js Gaussian Splatting</title>
+    <title>4DVV AR - .splat Gaussian Splatting</title>
     
     <style>
         * {
@@ -240,12 +240,12 @@
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV AR - gsplat.js Gaussian Splatting</h1>
-        <p>Real 4D Gaussian Splatting with native PLY support</p>
+        <h1>🎭 4DVV AR - .splat Gaussian Splatting</h1>
+        <p>Real 4D Gaussian Splatting with .splat files at 25fps</p>
     </div>
 
     <div class="status" id="status">
-        Initializing gsplat.js • Native Gaussian Splatting renderer
+        Initializing gsplat.js • Native .splat Gaussian Splatting renderer
     </div>
 
     <div class="loading" id="loading">
@@ -257,10 +257,10 @@
 
     <div class="controls">
         <div class="main-controls">
-            <button class="control-btn" onclick="loadFirstFrame()" disabled id="loadBtn">📂 Load PLY</button>
+            <button class="control-btn" onclick="loadFirstFrame()" disabled id="loadBtn">📂 Load .splat</button>
             <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
-            <button class="control-btn" onclick="previousFrame()" disabled>⏮️</button>
-            <button class="control-btn" onclick="nextFrame()" disabled>⏭️</button>
+            <button class="control-btn" onclick="previousFrame()" disabled>⮪</button>
+            <button class="control-btn" onclick="nextFrame()" disabled>⮫</button>
             <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
         </div>
         
@@ -271,15 +271,15 @@
             
             <div class="frame-info">
                 <span>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></span>
-                <span>Gaussians: <span id="gaussianCount">0</span></span>
+                <span>Buffer: <span id="bufferStatus">0/5</span></span>
             </div>
         </div>
 
         <div class="setup-info">
-            <h4>📋 gsplat.js Setup</h4>
+            <h4>📋 .splat Animation Setup</h4>
             <p>
-                ✅ Native PLY Gaussian Splatting support<br>
-                ✅ Proper spherical harmonics rendering<br>
+                ✅ Native .splat file support with buffering<br>
+                ✅ 25fps animation with pre-loading<br>
                 ✅ WebXR AR with 4D Gaussian Splats
             </p>
         </div>
@@ -287,17 +287,23 @@
 
     <!-- Load gsplat.js from CDN -->
     <script type="module">
-        import * as SPLAT from 'https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js';
-        
         // Global variables
+        let SPLAT;
         let scene, camera, renderer, controls;
         let currentFrame = 1;
         let totalFrames = 400;
         let isPlaying = false;
         let animationId = null;
         let arSession = null;
-        let currentGaussianSplat = null;
-        let frameCache = new Map();
+        
+        // Frame buffering system
+        let frameBuffer = new Map(); // Cache for loaded frames
+        let bufferSize = 5; // Number of frames to buffer ahead
+        let loadingFrames = new Set(); // Track frames currently loading
+        let currentSplatObject = null;
+        
+        // Base URL for .splat files
+        const baseURL = 'https://lumigrade.github.io/LumiAR/data/';
 
         // UI elements
         const canvas = document.getElementById('canvas3d');
@@ -309,12 +315,30 @@
         const playBtn = document.getElementById('playBtn');
         const currentFrameSpan = document.getElementById('currentFrame');
         const totalFramesSpan = document.getElementById('totalFrames');
-        const gaussianCountSpan = document.getElementById('gaussianCount');
+        const bufferStatusSpan = document.getElementById('bufferStatus');
         const timelineProgress = document.getElementById('timelineProgress');
 
         // Device detection
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isAndroid = /Android/.test(navigator.userAgent);
+
+        // Load gsplat.js library
+        async function loadGsplatLibrary() {
+            try {
+                updateLoadingText('Loading gsplat.js library...');
+                SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js');
+                return true;
+            } catch (error) {
+                console.warn('CDN import failed, trying alternative...', error);
+                try {
+                    SPLAT = await import('https://unpkg.com/gsplat@1.2.0/dist/index.js');
+                    return true;
+                } catch (error2) {
+                    console.error('All gsplat.js imports failed:', error2);
+                    throw new Error(`Failed to load gsplat.js: ${error2.message}`);
+                }
+            }
+        }
 
         // Initialize gsplat.js scene
         async function initGsplat() {
@@ -325,26 +349,16 @@
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 renderer = new SPLAT.WebGLRenderer(canvas);
+                controls = new SPLAT.OrbitControls(camera, canvas);
                 
-                // FIXED: Use proper gsplat.js camera API
-                camera.position = new SPLAT.Vector3(0, 1.6, 3); // Human eye height
-                camera.rotation = new SPLAT.Quaternion(0, 0, 0, 1); // Identity quaternion
-                
-                // Set up camera data
-                camera.data.fx = 1132; // Focal length x
-                camera.data.fy = 1132; // Focal length y
-                camera.data.setSize(window.innerWidth, window.innerHeight);
-                
-                // Configure renderer for mobile performance
+                // Set up camera and renderer
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 
-                // Enable WebXR if available
-                if (navigator.xr) {
-                    await initWebXR();
-                }
+                // WebXR check with better error handling
+                initWebXR();
 
                 loading.classList.add('hidden');
-                updateStatus('gsplat.js initialized • Ready to load PLY Gaussian Splats', 'success');
+                updateStatus('gsplat.js initialized • Ready to load .splat Gaussian Splats', 'success');
                 
                 // Enable controls
                 loadBtn.disabled = false;
@@ -361,94 +375,198 @@
         // Start render loop
         function startRenderLoop() {
             function render() {
-                if (renderer && scene && camera) {
-                    renderer.render(scene, camera);
+                try {
+                    if (controls) controls.update();
+                    if (renderer && scene && camera) {
+                        renderer.render(scene, camera);
+                    }
+                } catch (error) {
+                    console.error('Render error:', error);
                 }
                 requestAnimationFrame(render);
             }
             render();
         }
 
-        // WebXR initialization
-        async function initWebXR() {
+        // WebXR initialization with safe error handling
+        function initWebXR() {
+            // Check if running on HTTPS or localhost
+            const isSecureContext = window.isSecureContext || location.hostname === 'localhost';
+            
+            if (!isSecureContext) {
+                updateStatus('WebXR requires HTTPS - AR disabled');
+                return;
+            }
+            
+            if (!navigator.xr) {
+                updateStatus('WebXR not available in this browser');
+                return;
+            }
+            
+            // Safe WebXR check
+            navigator.xr.isSessionSupported('immersive-ar')
+                .then(supported => {
+                    if (supported) {
+                        arButton.disabled = false;
+                        updateStatus('WebXR AR supported • gsplat.js + AR ready', 'success');
+                    } else {
+                        updateStatus('WebXR AR not supported on this device');
+                    }
+                })
+                .catch(error => {
+                    console.warn('WebXR check failed:', error.message);
+                    updateStatus('WebXR check failed - AR disabled');
+                });
+        }
+
+        // Generate .splat file URL
+        function getSplatURL(frameNumber) {
+            const frameStr = String(frameNumber).padStart(6, '0');
+            return `${baseURL}frame_${frameStr}.splat`;
+        }
+
+        // Load individual .splat frame
+        async function loadSplatFrame(frameNumber) {
+            if (frameBuffer.has(frameNumber)) {
+                return frameBuffer.get(frameNumber);
+            }
+            
+            if (loadingFrames.has(frameNumber)) {
+                // Already loading, wait for it
+                return new Promise((resolve) => {
+                    const checkLoaded = () => {
+                        if (frameBuffer.has(frameNumber)) {
+                            resolve(frameBuffer.get(frameNumber));
+                        } else {
+                            setTimeout(checkLoaded, 50);
+                        }
+                    };
+                    checkLoaded();
+                });
+            }
+            
+            loadingFrames.add(frameNumber);
+            
             try {
-                if (await navigator.xr.isSessionSupported('immersive-ar')) {
-                    arButton.disabled = false;
-                    updateStatus('WebXR AR supported • gsplat.js + AR ready', 'success');
-                } else {
-                    updateStatus('WebXR AR not supported on this device');
+                const url = getSplatURL(frameNumber);
+                updateLoadingText(`Loading frame ${frameNumber}...`);
+                
+                console.log('Available SPLAT methods:', Object.keys(SPLAT));
+                
+                // Try different loading approaches
+                let splatObject;
+                
+                // Method 1: Try direct URL loading
+                try {
+                    splatObject = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
+                        console.log(`Loading frame ${frameNumber}: ${(progress * 100).toFixed(1)}%`);
+                    });
+                } catch (e1) {
+                    console.warn('Method 1 failed:', e1.message);
+                    
+                    // Method 2: Try manual fetch + buffer loading
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.arrayBuffer();
+                        console.log(`Fetched ${data.byteLength} bytes for frame ${frameNumber}`);
+                        
+                        // Try various buffer loading methods
+                        if (SPLAT.Loader.LoadFromBuffer) {
+                            splatObject = SPLAT.Loader.LoadFromBuffer(data, scene);
+                        } else if (SPLAT.SplatLoader) {
+                            splatObject = await SPLAT.SplatLoader.LoadFromBufferAsync(data, scene);
+                        } else {
+                            throw new Error('No suitable loading method found');
+                        }
+                        
+                    } catch (e2) {
+                        console.error('Method 2 failed:', e2.message);
+                        throw new Error(`All loading methods failed. Last error: ${e2.message}`);
+                    }
                 }
+                
+                // Cache the loaded object
+                frameBuffer.set(frameNumber, splatObject);
+                
+                // Clean up old frames if buffer is too large
+                if (frameBuffer.size > bufferSize * 3) {
+                    const oldestFrames = Array.from(frameBuffer.keys())
+                        .filter(f => Math.abs(f - currentFrame) > bufferSize * 2)
+                        .slice(0, bufferSize);
+                    
+                    oldestFrames.forEach(f => frameBuffer.delete(f));
+                }
+                
+                updateBufferStatus();
+                return splatObject;
+                
             } catch (error) {
-                console.error('WebXR check failed:', error);
-                updateStatus('WebXR not available');
+                console.error(`Failed to load frame ${frameNumber}:`, error);
+                throw error;
+            } finally {
+                loadingFrames.delete(frameNumber);
             }
         }
 
-        // Load PLY frame using gsplat.js native PLY loader
-        async function loadPlyFrame(frameNumber) {
-            try {
-                const frameFile = `data/frame_${String(frameNumber).padStart(6, '0')}.ply`;
-                
-                updateLoadingText(`Loading Gaussian PLY frame ${frameNumber}...`);
-                
-                // Clear previous frame from scene
-                if (currentGaussianSplat) {
-                    scene.removeObject(currentGaussianSplat);
+        // Pre-buffer frames around current frame
+        async function prebufferFrames(centerFrame) {
+            const framesToBuffer = [];
+            
+            for (let i = 0; i < bufferSize; i++) {
+                const nextFrame = centerFrame + i;
+                if (nextFrame <= totalFrames && !frameBuffer.has(nextFrame) && !loadingFrames.has(nextFrame)) {
+                    framesToBuffer.push(nextFrame);
                 }
-                
-                // Check cache first
-                if (frameCache.has(frameNumber)) {
-                    updateLoadingText(`Loading cached frame ${frameNumber}...`);
-                    currentGaussianSplat = frameCache.get(frameNumber);
-                    scene.addObject(currentGaussianSplat);
-                } else {
-                    // Load PLY using gsplat.js native PLY loader
-                    updateLoadingText(`Loading PLY: ${frameFile}...`);
-                    
-                    // Create progress callback
-                    const onProgress = (progress) => {
-                        const percent = (progress * 100).toFixed(0);
-                        updateLoadingText(`Loading frame ${frameNumber}: ${percent}%`);
-                    };
-                    
-                    // Load PLY - NOTE: PLYLoader automatically adds to scene
-                    currentGaussianSplat = await SPLAT.PLYLoader.LoadAsync(
-                        frameFile, 
-                        scene, 
-                        onProgress,
-                        "", // format (empty = default)
-                        false // useCache
-                    );
-                    
-                    // Cache for faster switching (limit cache size)
-                    if (frameCache.size < 20) {
-                        frameCache.set(frameNumber, currentGaussianSplat);
-                    }
+            }
+            
+            // Load frames in background
+            framesToBuffer.forEach(async (frameNum) => {
+                try {
+                    await loadSplatFrame(frameNum);
+                } catch (error) {
+                    console.warn(`Background loading failed for frame ${frameNum}:`, error);
                 }
+            });
+        }
 
-                // Update UI
+        // Display specific frame
+        async function displayFrame(frameNumber) {
+            try {
+                // Clear current object from scene
+                if (currentSplatObject) {
+                    scene.removeObject(currentSplatObject);
+                }
+                
+                // Load and display new frame
+                currentSplatObject = await loadSplatFrame(frameNumber);
+                scene.addObject(currentSplatObject);
+                
                 currentFrame = frameNumber;
                 updateFrameDisplay();
                 
-                // Count gaussians from the splat data
-                const gaussianCount = currentGaussianSplat ? currentGaussianSplat.data.vertexCount : 0;
-                updateGaussianCount(gaussianCount);
-
+                // Pre-buffer upcoming frames
+                prebufferFrames(frameNumber + 1);
+                
                 return true;
-
+                
             } catch (error) {
-                console.error(`Failed to load PLY frame ${frameNumber}:`, error);
-                throw new Error(`PLY loading failed: ${error.message}`);
+                console.error(`Failed to display frame ${frameNumber}:`, error);
+                updateStatus(`Frame ${frameNumber} load failed: ${error.message}`, 'error');
+                return false;
             }
         }
 
         // Load first frame
         async function loadFirstFrame() {
             loading.classList.remove('hidden');
-            updateLoadingText('Loading first PLY Gaussian Splat...');
+            updateLoadingText('Loading first .splat frame...');
             
             try {
-                await loadPlyFrame(1);
+                await displayFrame(1);
                 
                 // Enable animation controls
                 document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
@@ -457,12 +575,12 @@
                 }
                 
                 loading.classList.add('hidden');
-                updateStatus('✅ PLY Gaussian Splat loaded • Ready for AR and animation', 'success');
+                updateStatus('✅ .splat frame loaded • Ready for AR and animation', 'success');
                 
             } catch (error) {
                 loading.classList.add('hidden');
                 updateStatus(`❌ Loading failed: ${error.message}`, 'error');
-                console.error('PLY loading error:', error);
+                console.error('.splat loading error:', error);
             }
         }
 
@@ -509,7 +627,7 @@
         async function nextFrame() {
             const nextFrameNum = (currentFrame % totalFrames) + 1;
             try {
-                await loadPlyFrame(nextFrameNum);
+                await displayFrame(nextFrameNum);
             } catch (error) {
                 console.error('Animation frame error:', error);
                 stopAnimation();
@@ -519,17 +637,17 @@
         async function previousFrame() {
             const prevFrameNum = currentFrame > 1 ? currentFrame - 1 : totalFrames;
             try {
-                await loadPlyFrame(prevFrameNum);
+                await displayFrame(prevFrameNum);
             } catch (error) {
                 console.error('Frame navigation error:', error);
             }
         }
 
-        function seekFrame(event) {
+        async function seekFrame(event) {
             const rect = event.currentTarget.getBoundingClientRect();
             const position = (event.clientX - rect.left) / rect.width;
             const targetFrame = Math.max(1, Math.round(position * totalFrames));
-            loadPlyFrame(targetFrame);
+            await displayFrame(targetFrame);
         }
 
         function updateFrameDisplay() {
@@ -540,8 +658,9 @@
             timelineProgress.style.width = `${Math.max(0, progress)}%`;
         }
 
-        function updateGaussianCount(count) {
-            gaussianCountSpan.textContent = count.toLocaleString();
+        function updateBufferStatus() {
+            const bufferedCount = frameBuffer.size;
+            bufferStatusSpan.textContent = `${bufferedCount}/${bufferSize * 2}`;
         }
 
         // WebXR AR functionality
@@ -553,18 +672,13 @@
 
             try {
                 loading.classList.remove('hidden');
-                updateLoadingText('Starting AR with Gaussian Splatting...');
+                updateLoadingText('Starting AR with .splat Gaussian Splatting...');
 
                 arSession = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local', 'hit-test']
                 });
 
-                // Set up WebXR with gsplat.js renderer
                 await renderer.setXRSession(arSession);
-                
-                // Set up AR-specific camera settings
-                camera.data.fx = 1000; // Adjust for AR
-                camera.data.fy = 1000;
                 
                 arSession.addEventListener('end', () => {
                     arSession = null;
@@ -572,7 +686,7 @@
                 });
 
                 loading.classList.add('hidden');
-                updateStatus('🚀 AR Session Active • 4D Gaussian Splatting in AR!', 'success');
+                updateStatus('🚀 AR Session Active • 4D .splat Gaussian Splatting in AR!', 'success');
 
             } catch (error) {
                 loading.classList.add('hidden');
@@ -586,7 +700,6 @@
             status.textContent = message;
             status.className = `status ${type}`;
             
-            // Auto-hide success messages
             if (type === 'success') {
                 setTimeout(() => {
                     if (status.classList.contains('success')) {
@@ -602,11 +715,16 @@
 
         // Window resize handler
         window.addEventListener('resize', () => {
-            if (renderer) {
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-            if (camera) {
-                camera.data.setSize(window.innerWidth, window.innerHeight);
+            try {
+                if (renderer) {
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                }
+                // Note: camera.data.setSize might not exist in all versions
+                if (camera && camera.data && camera.data.setSize) {
+                    camera.data.setSize(window.innerWidth, window.innerHeight);
+                }
+            } catch (error) {
+                console.warn('Resize error:', error);
             }
         });
 
@@ -621,7 +739,23 @@
         // Initialize when page loads
         window.addEventListener('load', () => {
             updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Loading gsplat.js...`);
-            setTimeout(initGsplat, 500);
+            setTimeout(async () => {
+                try {
+                    // Load gsplat.js library first
+                    await loadGsplatLibrary();
+                    
+                    // Debug: Show available SPLAT methods
+                    console.log('SPLAT object:', SPLAT);
+                    console.log('Available SPLAT methods:', Object.keys(SPLAT));
+                    
+                    // Initialize the scene
+                    await initGsplat();
+                } catch (error) {
+                    console.error('Initialization error:', error);
+                    updateStatus(`Failed to initialize: ${error.message}`, 'error');
+                    loading.classList.add('hidden');
+                }
+            }, 500);
         });
 
     </script>
