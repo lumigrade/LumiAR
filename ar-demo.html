@@ -338,12 +338,42 @@
         // Load single .splat frame
         async function loadSingleFrame() {
             loading.classList.remove('hidden');
-            updateLoadingText('Loading frame_000001.splat...');
-            debugPrint('🔄 Starting .splat load...');
+            updateLoadingText('Testing .splat loading...');
+            debugPrint('🔄 Starting .splat load test...');
             
             try {
-                const url = 'https://lumigrade.github.io/LumiAR/data/frame_000001.splat';
-                debugPrint(`📁 URL: ${url}`);
+                // Test URLs in order of preference
+                const testUrls = [
+                    'https://lumigrade.github.io/LumiAR/data/frame_000001.splat', // Your file
+                    'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/bonsai/point_cloud/iteration_7000/point_cloud.ply', // Fallback PLY
+                    // We'll add a test .splat URL if available
+                ];
+                
+                let workingUrl = null;
+                let fileType = null;
+                
+                // Test each URL
+                for (const url of testUrls) {
+                    try {
+                        debugPrint(`🔄 Testing: ${url}`);
+                        const response = await fetch(url, { method: 'HEAD' }); // Just check if exists
+                        if (response.ok) {
+                            workingUrl = url;
+                            fileType = url.endsWith('.ply') ? 'ply' : 'splat';
+                            debugPrint(`✅ Found working URL: ${url} (${fileType})`);
+                            break;
+                        }
+                    } catch (e) {
+                        debugPrint(`❌ URL failed: ${url}`);
+                    }
+                }
+                
+                if (!workingUrl) {
+                    throw new Error('No accessible files found. Please check:\n1. GitHub Pages is enabled\n2. Files are uploaded\n3. Repository is public');
+                }
+                
+                const url = workingUrl;
+                debugPrint(`📁 Using URL: ${url}`);
                 
                 // Clear previous object
                 if (currentSplatObject) {
@@ -351,72 +381,136 @@
                     debugPrint('🗑️ Cleared previous object');
                 }
                 
-                // Try different loading methods based on available API
                 let splatObject = null;
                 
-                // Method 1: Try Loader.LoadAsync (most common)
-                if (SPLAT.Loader && SPLAT.Loader.LoadAsync) {
-                    debugPrint('🔄 Trying Loader.LoadAsync...');
+                if (fileType === 'ply') {
+                    // Use PLY loader as fallback
+                    debugPrint('🔄 Using PLYLoader...');
                     try {
-                        splatObject = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
+                        splatObject = await SPLAT.PLYLoader.LoadAsync(url, scene, (progress) => {
                             const percent = (progress * 100).toFixed(1);
-                            updateLoadingText(`Loading: ${percent}%`);
-                            debugPrint(`📊 Progress: ${percent}%`);
+                            updateLoadingText(`Loading PLY: ${percent}%`);
+                            debugPrint(`📊 PLY Progress: ${percent}%`);
                         });
-                        debugPrint('✅ Loader.LoadAsync succeeded');
+                        debugPrint('✅ PLY loaded successfully');
                     } catch (e) {
-                        debugPrint(`❌ Loader.LoadAsync failed: ${e.message}`);
+                        debugPrint(`❌ PLY loading failed: ${e.message}`);
                     }
-                }
-                
-                // Method 2: Try SplatLoader (if available)
-                if (!splatObject && SPLAT.SplatLoader) {
-                    debugPrint('🔄 Trying SplatLoader...');
-                    try {
-                        if (SPLAT.SplatLoader.LoadAsync) {
-                            splatObject = await SPLAT.SplatLoader.LoadAsync(url, scene, camera, (progress) => {
+                } else {
+                    // Try .splat loading methods
+                    
+                    // Method 1: Try Loader.LoadAsync 
+                    if (SPLAT.Loader && SPLAT.Loader.LoadAsync) {
+                        debugPrint('🔄 Trying Loader.LoadAsync...');
+                        try {
+                            splatObject = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
                                 const percent = (progress * 100).toFixed(1);
                                 updateLoadingText(`Loading: ${percent}%`);
                                 debugPrint(`📊 Progress: ${percent}%`);
                             });
-                        } else if (SPLAT.SplatLoader.LoadFromFileAsync) {
-                            // Fetch and convert to File object
+                            debugPrint('✅ Loader.LoadAsync succeeded');
+                        } catch (e) {
+                            debugPrint(`❌ Loader.LoadAsync failed: ${e.message}`);
+                        }
+                    }
+                    
+                    // Method 2: Try SplatData creation
+                    if (!splatObject) {
+                        debugPrint('🔄 Trying SplatData creation...');
+                        try {
                             const response = await fetch(url);
-                            const blob = await response.blob();
-                            const file = new File([blob], 'frame_000001.splat');
-                            splatObject = await SPLAT.SplatLoader.LoadFromFileAsync(file, scene, camera, (progress) => {
-                                const percent = (progress * 100).toFixed(1);
-                                updateLoadingText(`Loading: ${percent}%`);
-                                debugPrint(`📊 Progress: ${percent}%`);
-                            });
+                            if (!response.ok) {
+                                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                            }
+                            
+                            const data = await response.arrayBuffer();
+                            debugPrint(`📦 Fetched ${data.byteLength} bytes`);
+                            
+                            // Create SplatData from raw .splat binary
+                            const splatData = new SPLAT.SplatData(data);
+                            debugPrint(`✅ SplatData created: ${splatData.vertexCount} vertices`);
+                            
+                            // Create Splat object
+                            splatObject = new SPLAT.Splat(splatData);
+                            scene.addObject(splatObject);
+                            debugPrint('✅ Splat object added to scene');
+                            
+                        } catch (e) {
+                            debugPrint(`❌ SplatData creation failed: ${e.message}`);
                         }
-                        debugPrint('✅ SplatLoader succeeded');
-                    } catch (e) {
-                        debugPrint(`❌ SplatLoader failed: ${e.message}`);
                     }
-                }
-                
-                // Method 3: Manual fetch + buffer loading
-                if (!splatObject) {
-                    debugPrint('🔄 Trying manual fetch...');
-                    try {
-                        const response = await fetch(url);
-                        if (!response.ok) {
-                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    
+                    // Method 3: Try manual .splat parsing
+                    if (!splatObject) {
+                        debugPrint('🔄 Trying manual .splat parsing...');
+                        try {
+                            const response = await fetch(url);
+                            const data = await response.arrayBuffer();
+                            
+                            // Manual parsing of .splat format
+                            const view = new DataView(data);
+                            const splatCount = data.byteLength / 32;
+                            debugPrint(`📊 Calculated ${splatCount} splats from ${data.byteLength} bytes`);
+                            
+                            if (splatCount > 0 && splatCount < 1000000) {
+                                // Create render data arrays
+                                const positions = new Float32Array(splatCount * 3);
+                                const scales = new Float32Array(splatCount * 3);
+                                const colors = new Uint8Array(splatCount * 4);
+                                const rotations = new Uint8Array(splatCount * 4);
+                                
+                                // Parse .splat binary data
+                                for (let i = 0; i < splatCount; i++) {
+                                    const offset = i * 32;
+                                    
+                                    // Position (bytes 0-11): 3 floats
+                                    positions[i * 3 + 0] = view.getFloat32(offset + 0, true);
+                                    positions[i * 3 + 1] = view.getFloat32(offset + 4, true);
+                                    positions[i * 3 + 2] = view.getFloat32(offset + 8, true);
+                                    
+                                    // Scales (bytes 12-23): 3 floats
+                                    scales[i * 3 + 0] = view.getFloat32(offset + 12, true);
+                                    scales[i * 3 + 1] = view.getFloat32(offset + 16, true);
+                                    scales[i * 3 + 2] = view.getFloat32(offset + 20, true);
+                                    
+                                    // Colors RGBA (bytes 24-27): 4 bytes
+                                    colors[i * 4 + 0] = view.getUint8(offset + 24);
+                                    colors[i * 4 + 1] = view.getUint8(offset + 25);
+                                    colors[i * 4 + 2] = view.getUint8(offset + 26);
+                                    colors[i * 4 + 3] = view.getUint8(offset + 27);
+                                    
+                                    // Rotations (bytes 28-31): 4 bytes
+                                    rotations[i * 4 + 0] = view.getUint8(offset + 28);
+                                    rotations[i * 4 + 1] = view.getUint8(offset + 29);
+                                    rotations[i * 4 + 2] = view.getUint8(offset + 30);
+                                    rotations[i * 4 + 3] = view.getUint8(offset + 31);
+                                }
+                                
+                                debugPrint(`✅ Parsed ${splatCount} splats manually`);
+                                
+                                // Try to create SplatData with manual data
+                                try {
+                                    const splatData = new SPLAT.SplatData();
+                                    splatData.positions = positions;
+                                    splatData.scales = scales;
+                                    splatData.colors = colors;
+                                    splatData.rotations = rotations;
+                                    splatData.vertexCount = splatCount;
+                                    
+                                    splatObject = new SPLAT.Splat(splatData);
+                                    scene.addObject(splatObject);
+                                    debugPrint('✅ Manual splat object created and added');
+                                    
+                                } catch (e2) {
+                                    debugPrint(`❌ Manual SplatData creation failed: ${e2.message}`);
+                                }
+                            } else {
+                                throw new Error(`Invalid splat count: ${splatCount}`);
+                            }
+                            
+                        } catch (e) {
+                            debugPrint(`❌ Manual parsing failed: ${e.message}`);
                         }
-                        
-                        const data = await response.arrayBuffer();
-                        debugPrint(`📦 Fetched ${data.byteLength} bytes`);
-                        
-                        // Try buffer loading methods
-                        if (SPLAT.Loader && SPLAT.Loader.LoadFromBuffer) {
-                            splatObject = SPLAT.Loader.LoadFromBuffer(data, scene);
-                            debugPrint('✅ LoadFromBuffer succeeded');
-                        } else {
-                            throw new Error('No buffer loading method available');
-                        }
-                    } catch (e) {
-                        debugPrint(`❌ Manual fetch failed: ${e.message}`);
                     }
                 }
                 
@@ -429,8 +523,8 @@
                     }
                     
                     loading.classList.add('hidden');
-                    updateStatus('✅ .splat loaded successfully! Try AR now.', 'success');
-                    debugPrint('🎉 .splat loaded and displayed!');
+                    updateStatus(`✅ ${fileType.toUpperCase()} loaded successfully! Try AR now.`, 'success');
+                    debugPrint(`🎉 ${fileType.toUpperCase()} loaded and displayed!`);
                     
                     // Enable AR if available
                     if (!arButton.disabled) {
@@ -445,7 +539,7 @@
                 loading.classList.add('hidden');
                 updateStatus(`❌ Loading failed: ${error.message}`, 'error');
                 debugPrint(`💥 FAILED: ${error.message}`);
-                console.error('.splat loading error:', error);
+                console.error('File loading error:', error);
             }
         }
 
