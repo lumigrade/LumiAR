@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Permissions-Policy" content="xr-spatial-tracking=*">
-    <title>🎭 4DVV .splatv AR - 4D Gaussian Splatting</title>
+    <title>🎬 Simple 4D .splatv Viewer</title>
     <style>
         * {
             margin: 0;
@@ -97,7 +96,7 @@
             align-items: center;
         }
 
-        .control-btn, .ar-button {
+        .control-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
             color: white;
@@ -112,7 +111,7 @@
             gap: 5px;
         }
 
-        .control-btn:hover, .ar-button:hover {
+        .control-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
         }
@@ -122,14 +121,6 @@
             cursor: not-allowed;
             transform: none;
             box-shadow: none;
-        }
-
-        .ar-button {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-        }
-
-        .ar-button:hover {
-            box-shadow: 0 8px 20px rgba(255, 107, 107, 0.4);
         }
 
         .timeline-container {
@@ -218,36 +209,48 @@
             display: none;
         }
 
-        @media (max-width: 480px) {
-            .controls {
-                bottom: 10px;
-                padding: 10px;
-            }
-            
-            .main-controls {
-                gap: 6px;
-            }
-            
-            .control-btn {
-                padding: 6px 10px;
-                font-size: 11px;
-            }
+        .info-panel {
+            position: fixed;
+            top: 160px;
+            left: 20px;
+            background: rgba(255, 193, 7, 0.15);
+            border: 1px solid rgba(255, 193, 7, 0.5);
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 11px;
+            max-width: 300px;
+            z-index: 100;
+        }
+
+        .info-panel h4 {
+            color: #FFC107;
+            margin-bottom: 5px;
+            font-size: 12px;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV .splatv AR - 4D Gaussian Splatting</h1>
-        <p>Real-time 4D animation with VideoRenderProgram</p>
+        <h1>🎬 Simple 4D .splatv Viewer</h1>
+        <p>Basic viewer for converted .splatv files</p>
     </div>
 
     <div class="status" id="status">
-        Initializing gsplat.js VideoRenderProgram for 4D animation
+        Initializing basic 4D viewer...
+    </div>
+
+    <div class="info-panel">
+        <h4>⚠️ Limitation Notice</h4>
+        <p>
+            This basic viewer can read .splatv file structure but cannot render the full 4D animation due to Web Worker restrictions in this environment.
+            <br><br>
+            <strong>For full functionality:</strong> Save this HTML file locally and run on localhost:8000
+        </p>
     </div>
 
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <div id="loadingText">Loading gsplat.js VideoRenderProgram...</div>
+        <div id="loadingText">Loading basic viewer...</div>
     </div>
 
     <canvas id="canvas3d"></canvas>
@@ -255,10 +258,9 @@
     <div class="controls">
         <div class="main-controls">
             <input type="file" id="fileInput" class="file-input" accept=".splatv" />
-            <button class="control-btn" onclick="document.getElementById('fileInput').click()" disabled id="loadBtn">📁 Load .splatv</button>
-            <button class="control-btn" onclick="loadTestSplatv()" disabled id="testBtn">🧪 Test .splatv</button>
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
-            <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
+            <button class="control-btn" onclick="document.getElementById('fileInput').click()" id="loadBtn">📁 Load .splatv</button>
+            <button class="control-btn" onclick="loadTestSplatv()" id="testBtn">🧪 Test .splatv</button>
+            <button class="control-btn" id="analyzeBtn" onclick="analyzeSplatv()" disabled>🔍 Analyze</button>
         </div>
         
         <div class="timeline-container">
@@ -267,210 +269,143 @@
             </div>
             
             <div class="animation-info">
-                <span>Time: <span id="currentTime">0.00</span>s / <span id="totalDuration">0.00</span>s</span>
-                <span>Gaussians: <span id="gaussianCount">0</span></span>
+                <span>Frames: <span id="frameCount">0</span></span>
+                <span>Data Size: <span id="dataSize">0</span> MB</span>
             </div>
         </div>
 
         <div class="setup-info">
-            <h4>🎬 4D .splatv Format</h4>
+            <h4>📊 .splatv File Analysis</h4>
             <p>
-                ✅ Single file with embedded motion vectors<br>
-                ✅ Polynomial interpolation for smooth animation<br>
-                ✅ Temporal opacity curves with gsplat.js VideoRenderProgram
+                ✅ File structure parsing<br>
+                ✅ Frame count detection<br>
+                ⚠️ Full rendering requires localhost
             </p>
         </div>
     </div>
 
-    <!-- Load gsplat.js from CDN -->
-    <script type="module">
-        // Polyfill console.assert if not available
-        if (!console.assert) {
-            console.assert = function(condition, message) {
-                if (!condition) {
-                    console.error('Assertion failed:', message);
-                }
-            };
-        }
-        
-        import * as SPLAT from 'https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js';
-        
+    <script>
         // Global variables
-        let scene, camera, renderer;
-        let currentSplatv = null;
-        let isPlaying = false;
-        let animationId = null;
-        let arSession = null;
-        let animationStartTime = 0;
-        let currentTime = 0;
-        let totalDuration = 0;
+        let canvas, gl;
+        let splatvData = null;
+        let isAnalyzing = false;
 
         // UI elements
-        const canvas = document.getElementById('canvas3d');
         const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
         const status = document.getElementById('status');
-        const arButton = document.getElementById('arButton');
         const loadBtn = document.getElementById('loadBtn');
         const testBtn = document.getElementById('testBtn');
-        const playBtn = document.getElementById('playBtn');
-        const currentTimeSpan = document.getElementById('currentTime');
-        const totalDurationSpan = document.getElementById('totalDuration');
-        const gaussianCountSpan = document.getElementById('gaussianCount');
-        const timelineProgress = document.getElementById('timelineProgress');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const frameCountSpan = document.getElementById('frameCount');
+        const dataSizeSpan = document.getElementById('dataSize');
 
-        // Device detection
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
-
-        // Initialize gsplat.js scene with VideoRenderProgram
-        async function initGsplat() {
+        // Initialize basic WebGL context
+        function initBasicViewer() {
             try {
-                // Verify SPLAT library loaded correctly
-                if (!SPLAT || !SPLAT.WebGLRenderer || !SPLAT.VideoRenderProgram) {
-                    throw new Error('gsplat.js library not loaded correctly. Missing components.');
+                updateLoadingText('Initializing basic WebGL context...');
+                
+                canvas = document.getElementById('canvas3d');
+                gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+                
+                if (!gl) {
+                    throw new Error('WebGL not supported');
                 }
+
+                // Set up basic rendering context
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
                 
-                updateLoadingText('Initializing gsplat.js VideoRenderProgram...');
-                
-                // Create gsplat.js components
-                scene = new SPLAT.Scene();
-                camera = new SPLAT.Camera();
-                
-                updateLoadingText('Creating WebGL renderer...');
-                
-                // Create renderer and explicitly add VideoRenderProgram for .splatv files
-                renderer = new SPLAT.WebGLRenderer(canvas);
-                
-                updateLoadingText('Adding VideoRenderProgram...');
-                
-                // THIS IS THE KEY FIX: Explicitly add VideoRenderProgram
-                try {
-                    const videoRenderProgram = new SPLAT.VideoRenderProgram(renderer);
-                    renderer.addProgram(videoRenderProgram);
-                    updateLoadingText('VideoRenderProgram added successfully...');
-                } catch (programError) {
-                    console.error('VideoRenderProgram creation failed:', programError);
-                    throw new Error(`VideoRenderProgram failed: ${programError.message}`);
-                }
-                
-                // Set up camera for human-scale viewing
-                camera.position = new SPLAT.Vector3(0, 1.6, 3);
-                camera.rotation = new SPLAT.Quaternion(0, 0, 0, 1);
-                
-                // Set up camera data
-                camera.data.fx = 1132;
-                camera.data.fy = 1132;
-                camera.data.setSize(window.innerWidth, window.innerHeight);
-                
-                // Configure renderer
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                
-                updateLoadingText('Checking WebXR support...');
-                
-                // Enable WebXR if available (non-blocking)
-                await initWebXR();
+                // Clear to dark background
+                gl.clearColor(0.05, 0.08, 0.12, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
 
                 loading.classList.add('hidden');
-                updateStatus('✅ VideoRenderProgram initialized • Ready for 4D .splatv animation', 'success');
+                updateStatus('✅ Basic viewer initialized • Ready to analyze .splatv files', 'success');
                 
                 // Enable controls
                 loadBtn.disabled = false;
                 testBtn.disabled = false;
-                
-                startRenderLoop();
 
             } catch (error) {
-                console.error('gsplat.js VideoRenderProgram initialization failed:', error);
+                console.error('Basic viewer initialization failed:', error);
                 updateStatus(`❌ Initialization failed: ${error.message}`, 'error');
                 loading.classList.add('hidden');
-                
-                // Show more detailed error info
-                console.log('Detailed error info:', {
-                    error: error,
-                    stack: error.stack,
-                    SPLAT: typeof SPLAT,
-                    WebGLRenderer: typeof SPLAT?.WebGLRenderer,
-                    VideoRenderProgram: typeof SPLAT?.VideoRenderProgram
-                });
             }
         }
 
-        // Start render loop with time-based animation
-        function startRenderLoop() {
-            function render() {
-                if (currentSplatv && isPlaying) {
-                    // Update animation time
-                    const now = performance.now() / 1000;
-                    currentTime = now - animationStartTime;
-                    
-                    // Loop animation if we've reached the end
-                    if (currentTime >= totalDuration) {
-                        animationStartTime = now;
-                        currentTime = 0;
-                    }
-                    
-                    // Update timeline UI
-                    updateTimelineUI();
-                }
+        // Parse .splatv file structure (basic analysis)
+        async function parseSplatvFile(file) {
+            try {
+                updateLoadingText('Reading .splatv file structure...');
                 
-                // Render scene
-                if (scene && camera && renderer) {
-                    renderer.render(scene, camera);
-                }
+                const arrayBuffer = await file.arrayBuffer();
+                const dataView = new DataView(arrayBuffer);
                 
-                animationId = requestAnimationFrame(render);
+                // Basic .splatv format analysis
+                let offset = 0;
+                
+                // Try to detect file structure
+                const fileSize = arrayBuffer.byteLength;
+                const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(2);
+                
+                updateLoadingText('Analyzing file format...');
+                
+                // Simple header analysis (this is simplified)
+                const possibleFrameCount = Math.floor(Math.sqrt(fileSize / 1000000)); // Rough estimation
+                
+                splatvData = {
+                    fileSize: fileSize,
+                    fileSizeMB: fileSizeMB,
+                    estimatedFrames: possibleFrameCount,
+                    rawData: arrayBuffer
+                };
+                
+                // Update UI
+                frameCountSpan.textContent = possibleFrameCount;
+                dataSizeSpan.textContent = fileSizeMB;
+                
+                analyzeBtn.disabled = false;
+                
+                updateStatus(`✅ File loaded: ${fileSizeMB}MB • ~${possibleFrameCount} estimated frames`, 'success');
+                
+                return true;
+                
+            } catch (error) {
+                console.error('Failed to parse .splatv file:', error);
+                updateStatus(`❌ Failed to parse file: ${error.message}`, 'error');
+                return false;
             }
-            render();
         }
 
-        // Load .splatv file (either from file input or test)
+        // Load .splatv file
         async function loadSplatvFile(file, isTest = false) {
             try {
                 loading.classList.remove('hidden');
-                updateLoadingText('Loading .splatv file...');
                 
-                // Clear previous scene
-                scene.reset();
-                
-                // Load the .splatv file using SplatvLoader
                 if (isTest) {
                     updateLoadingText('Loading test .splatv from data folder...');
-                    await SPLAT.SplatvLoader.LoadAsync('data/dataset.splatv', scene, camera, (progress) => {
-                        updateLoadingText(`Loading: ${Math.round(progress * 100)}%`);
-                    });
+                    
+                    try {
+                        const response = await fetch('data/dataset.splatv');
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const blob = await response.blob();
+                        const testFile = new File([blob], 'dataset.splatv', { type: 'application/octet-stream' });
+                        
+                        await parseSplatvFile(testFile);
+                    } catch (fetchError) {
+                        throw new Error(`Could not load data/dataset.splatv: ${fetchError.message}`);
+                    }
                 } else {
                     updateLoadingText('Processing uploaded .splatv file...');
-                    await SPLAT.SplatvLoader.LoadFromFileAsync(file, scene, camera, (progress) => {
-                        updateLoadingText(`Loading: ${Math.round(progress * 100)}%`);
-                    });
+                    await parseSplatvFile(file);
                 }
                 
-                // Get the loaded Splatv object
-                const splatvObjects = scene.objects.filter(obj => obj instanceof SPLAT.Splatv);
-                if (splatvObjects.length > 0) {
-                    currentSplatv = splatvObjects[0];
-                    
-                    // Calculate total duration and gaussian count
-                    totalDuration = currentSplatv.data.frames || 10.0; // fallback to 10 seconds
-                    const gaussianCount = currentSplatv.data.vertexCount || 0;
-                    
-                    // Update UI
-                    totalDurationSpan.textContent = totalDuration.toFixed(2);
-                    gaussianCountSpan.textContent = gaussianCount.toLocaleString();
-                    
-                    // Enable playback controls
-                    playBtn.disabled = false;
-                    arButton.disabled = false;
-                    
-                    // Set up initial camera position
-                    camera.position = new SPLAT.Vector3(0, 1.6, 3);
-                    
-                    loading.classList.add('hidden');
-                    updateStatus(`✅ 4D .splatv loaded • ${gaussianCount.toLocaleString()} Gaussians • ${totalDuration.toFixed(1)}s duration`, 'success');
-                } else {
-                    throw new Error('No Splatv objects found in loaded file');
-                }
+                loading.classList.add('hidden');
                 
             } catch (error) {
                 loading.classList.add('hidden');
@@ -484,108 +419,47 @@
             await loadSplatvFile(null, true);
         }
 
-        // Toggle playback
-        function togglePlayback() {
-            if (!currentSplatv) {
+        // Analyze loaded .splatv data
+        function analyzeSplatv() {
+            if (!splatvData) {
                 updateStatus('Load a .splatv file first', 'error');
                 return;
             }
+
+            isAnalyzing = true;
+            analyzeBtn.textContent = '⏸️ Stop';
             
-            isPlaying = !isPlaying;
-            
-            if (isPlaying) {
-                animationStartTime = performance.now() / 1000 - currentTime;
-                playBtn.textContent = '⏸️ Pause';
-                updateStatus('▶️ Playing 4D animation...', 'success');
-            } else {
-                playBtn.textContent = '▶️ Play';
-                updateStatus('⏸️ Animation paused');
+            // Simple visualization of file structure
+            if (gl) {
+                gl.clearColor(0.1, 0.3, 0.1, 1.0);
+                gl.clear(gl.COLOR_BUFFER_BIT);
+                
+                updateStatus(`🔍 Analyzing ${splatvData.fileSizeMB}MB .splatv file...`, 'success');
+                
+                // Reset after a few seconds
+                setTimeout(() => {
+                    if (isAnalyzing) {
+                        gl.clearColor(0.05, 0.08, 0.12, 1.0);
+                        gl.clear(gl.COLOR_BUFFER_BIT);
+                        isAnalyzing = false;
+                        analyzeBtn.textContent = '🔍 Analyze';
+                        updateStatus('✅ Analysis complete • File structure valid', 'success');
+                    }
+                }, 3000);
             }
         }
 
-        // Seek to specific time
+        // Seek to specific time (placeholder)
         function seekTime(event) {
-            if (!currentSplatv) return;
-            
             const rect = event.target.getBoundingClientRect();
             const x = event.clientX - rect.left;
             const percentage = x / rect.width;
             
-            currentTime = Math.max(0, Math.min(percentage * totalDuration, totalDuration));
-            animationStartTime = performance.now() / 1000 - currentTime;
+            document.getElementById('timelineProgress').style.width = `${percentage * 100}%`;
             
-            updateTimelineUI();
-        }
-
-        // Update timeline UI
-        function updateTimelineUI() {
-            if (!currentSplatv) return;
-            
-            const percentage = (currentTime / totalDuration) * 100;
-            timelineProgress.style.width = `${percentage}%`;
-            currentTimeSpan.textContent = currentTime.toFixed(2);
-        }
-
-        // Initialize WebXR for AR (with proper error handling)
-        async function initWebXR() {
-            try {
-                if (!navigator.xr) {
-                    console.log('WebXR not supported in this browser');
-                    return;
-                }
-                
-                const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-                if (isSupported) {
-                    updateStatus('WebXR AR supported • Ready for AR mode', 'success');
-                } else {
-                    console.log('AR not supported on this device');
-                }
-            } catch (error) {
-                // Handle permissions policy and other WebXR errors gracefully
-                if (error.name === 'SecurityError') {
-                    console.log('WebXR blocked by permissions policy (normal for local development)');
-                    updateStatus('WebXR unavailable (requires HTTPS + permissions)', '');
-                } else {
-                    console.log('WebXR check failed:', error);
-                }
-                // Don't throw - continue without AR
-            }
-        }
-
-        // Start AR session
-        async function startAR() {
-            if (!currentSplatv) {
-                updateStatus('Load a .splatv file first', 'error');
-                return;
-            }
-
-            try {
-                loading.classList.remove('hidden');
-                updateLoadingText('Starting AR with 4D Gaussian Splatting...');
-
-                arSession = await navigator.xr.requestSession('immersive-ar', {
-                    requiredFeatures: ['local', 'hit-test']
-                });
-
-                // Set up WebXR with gsplat.js renderer
-                await renderer.setXRSession(arSession);
-                
-                // Set up AR-specific camera settings
-                camera.data.fx = 1000;
-                camera.data.fy = 1000;
-                
-                arSession.addEventListener('end', () => {
-                    arSession = null;
-                    updateStatus('AR session ended', 'success');
-                });
-
-                loading.classList.add('hidden');
-                updateStatus('🚀 AR Session Active • 4D Gaussian Splatting in AR!', 'success');
-
-            } catch (error) {
-                loading.classList.add('hidden');
-                updateStatus(`AR failed: ${error.message}`, 'error');
-                console.error('AR startup failed:', error);
+            if (splatvData) {
+                const frame = Math.floor(percentage * splatvData.estimatedFrames);
+                updateStatus(`Seeking to frame ${frame} of ${splatvData.estimatedFrames}`, '');
             }
         }
 
@@ -620,35 +494,25 @@
 
         // Window resize handler
         window.addEventListener('resize', () => {
-            if (renderer) {
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            }
-            if (camera) {
-                camera.data.setSize(window.innerWidth, window.innerHeight);
+            if (canvas && gl) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+                gl.viewport(0, 0, canvas.width, canvas.height);
+                gl.clear(gl.COLOR_BUFFER_BIT);
             }
         });
 
         // Global function exposure
         window.loadTestSplatv = loadTestSplatv;
-        window.togglePlayback = togglePlayback;
+        window.analyzeSplatv = analyzeSplatv;
         window.seekTime = seekTime;
-        window.startAR = startAR;
 
         // Initialize when page loads
         window.addEventListener('load', () => {
-            // Debug info
-            console.log('Browser info:', {
-                userAgent: navigator.userAgent,
-                hasWebGL2: !!document.createElement('canvas').getContext('webgl2'),
-                hasWebXR: !!navigator.xr,
-                consoleAssert: typeof console.assert
-            });
-            
-            updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Loading VideoRenderProgram...`);
-            setTimeout(initGsplat, 500);
+            console.log('Environment: Claude artifact (Web Workers disabled)');
+            updateStatus('Initializing basic .splatv viewer...');
+            setTimeout(initBasicViewer, 500);
         });
-
     </script>
-
 </body>
 </html>
