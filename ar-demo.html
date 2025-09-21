@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎬 PLY Sequence AR - 4D Gaussian Splatting</title>
+    <title>🎬 Improved PLY Sequence AR - 4D Gaussian Splatting</title>
     <style>
         * {
             margin: 0;
@@ -122,15 +122,39 @@
             padding: 10px 20px;
         }
 
+        .camera-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-left: 10px;
+            padding-left: 10px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .slider-control {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .slider-control label {
+            font-size: 10px;
+            min-width: 40px;
+        }
+
+        .slider-control input {
+            width: 80px;
+        }
+
         .timeline-container {
             margin-top: 10px;
         }
 
         .timeline {
-            width: 300px;
-            height: 6px;
+            width: 400px;
+            height: 8px;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 3px;
+            border-radius: 4px;
             cursor: pointer;
             margin-bottom: 8px;
             position: relative;
@@ -139,7 +163,7 @@
         .timeline-progress {
             height: 100%;
             background: linear-gradient(90deg, #4CAF50, #2196F3);
-            border-radius: 3px;
+            border-radius: 4px;
             width: 0%;
             transition: width 0.1s ease;
         }
@@ -162,7 +186,7 @@
             border-radius: 15px;
             text-align: center;
             z-index: 200;
-            min-width: 250px;
+            min-width: 300px;
         }
 
         .loading.hidden {
@@ -182,27 +206,6 @@
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
-        }
-
-        .setup-info {
-            background: rgba(34, 197, 94, 0.2);
-            border: 1px solid rgba(34, 197, 94, 0.5);
-            border-radius: 15px;
-            padding: 15px;
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .setup-info h4 {
-            color: #22C55E;
-            font-size: 12px;
-            margin-bottom: 8px;
-        }
-
-        .setup-info p {
-            font-size: 10px;
-            opacity: 0.8;
-            line-height: 1.4;
         }
 
         .file-input {
@@ -227,13 +230,23 @@
             border-radius: 8px;
         }
 
-        @media (max-width: 480px) {
+        .playback-controls {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            padding-left: 10px;
+            border-left: 1px solid rgba(255,255,255,0.2);
+        }
+
+        @media (max-width: 768px) {
             .controls {
                 bottom: 10px;
                 padding: 10px;
+                max-width: 90vw;
             }
             
             .main-controls {
+                flex-wrap: wrap;
                 gap: 6px;
             }
             
@@ -241,22 +254,26 @@
                 padding: 6px 10px;
                 font-size: 11px;
             }
+
+            .timeline {
+                width: 300px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎬 PLY Sequence AR - 4D Gaussian Splatting</h1>
-        <p>Real-time 4D animation with PLY frame sequences</p>
+        <h1>🎬 Improved PLY Sequence AR</h1>
+        <p>Enhanced 4D animation with better controls</p>
     </div>
 
     <div class="status" id="status">
-        Initializing gsplat.js PLY loader for 4D animation
+        Initializing enhanced PLY loader...
     </div>
 
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <div id="loadingText">Loading gsplat.js PLY loader...</div>
+        <div id="loadingText">Loading enhanced gsplat.js...</div>
     </div>
 
     <canvas id="canvas3d"></canvas>
@@ -265,9 +282,26 @@
         <div class="main-controls">
             <input type="file" id="fileInput" class="file-input" accept=".ply" />
             <input type="file" id="folderInput" class="folder-input" webkitdirectory accept=".ply" />
-            <button class="control-btn" onclick="document.getElementById('fileInput').click()" disabled id="loadBtn">📁 Load PLY</button>
             <button class="control-btn" onclick="document.getElementById('folderInput').click()" disabled id="sequenceBtn">🎬 Load Sequence</button>
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
+            
+            <div class="playback-controls">
+                <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
+                <div class="slider-control">
+                    <label>Speed:</label>
+                    <input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1" onchange="updatePlaybackSpeed()">
+                    <span id="speedValue">1.0x</span>
+                </div>
+            </div>
+
+            <div class="camera-controls">
+                <div class="slider-control">
+                    <label>Scale:</label>
+                    <input type="range" id="scaleSlider" min="0.1" max="10" step="0.1" value="3" onchange="updateScale()">
+                    <span id="scaleValue">3.0x</span>
+                </div>
+                <button class="control-btn" onclick="resetCamera()">🎯 Reset Cam</button>
+            </div>
+            
             <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
             
             <div class="sequence-controls">
@@ -283,16 +317,8 @@
             <div class="animation-info">
                 <span>Time: <span id="currentTime">0.00</span>s / <span id="totalDuration">0.00</span>s</span>
                 <span>Gaussians: <span id="gaussianCount">0</span></span>
+                <span>FPS: <span id="actualFps">0</span></span>
             </div>
-        </div>
-
-        <div class="setup-info">
-            <h4>🎬 PLY Sequence Format</h4>
-            <p>
-                ✅ Direct PLY loading (no conversion needed)<br>
-                ✅ 4D animation by cycling through frames<br>
-                ✅ Works with your 400 frame sequence at 25fps
-            </p>
         </div>
     </div>
 
@@ -310,7 +336,15 @@
         let animationStartTime = 0;
         let currentTime = 0;
         let totalDuration = 0;
-        let fps = 25; // 25fps for your sequence
+        let fps = 25;
+        let playbackSpeed = 1.0;
+        let modelScale = 3.0;
+        let frameTimeStamps = [];
+        let actualFps = 0;
+
+        // Pre-loading and caching
+        let preloadedSplats = new Map();
+        let isPreloading = false;
 
         // UI elements
         const canvas = document.getElementById('canvas3d');
@@ -318,7 +352,6 @@
         const loadingText = document.getElementById('loadingText');
         const status = document.getElementById('status');
         const arButton = document.getElementById('arButton');
-        const loadBtn = document.getElementById('loadBtn');
         const sequenceBtn = document.getElementById('sequenceBtn');
         const playBtn = document.getElementById('playBtn');
         const currentTimeSpan = document.getElementById('currentTime');
@@ -326,78 +359,101 @@
         const gaussianCountSpan = document.getElementById('gaussianCount');
         const timelineProgress = document.getElementById('timelineProgress');
         const frameInfo = document.getElementById('frameInfo');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const scaleSlider = document.getElementById('scaleSlider');
+        const scaleValue = document.getElementById('scaleValue');
+        const actualFpsSpan = document.getElementById('actualFps');
 
         // Device detection
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const isAndroid = /Android/.test(navigator.userAgent);
 
-        // Initialize gsplat.js scene for PLY loading
+        // Initialize gsplat.js scene
         async function initGsplat() {
             try {
-                updateLoadingText('Initializing gsplat.js PLY loader...');
+                updateLoadingText('Initializing enhanced PLY loader...');
                 
-                // Create gsplat.js components
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 renderer = new SPLAT.WebGLRenderer(canvas);
                 controls = new SPLAT.OrbitControls(camera, canvas);
                 
-                // Set up camera for human-scale viewing
-                camera.position = new SPLAT.Vector3(0, 1.6, 3);
+                // Enhanced camera setup for better viewing
+                camera.position = new SPLAT.Vector3(0, 1.6, 2);
                 camera.rotation = new SPLAT.Quaternion(0, 0, 0, 1);
                 
-                // Set up camera data
                 camera.data.fx = 1132;
                 camera.data.fy = 1132;
                 camera.data.setSize(window.innerWidth, window.innerHeight);
                 
-                // Configure renderer
                 renderer.setSize(window.innerWidth, window.innerHeight);
                 
-                // Enable WebXR if available
+                // Enhanced controls settings
+                if (controls) {
+                    controls.minZoom = 0.1;  // Allow much closer zoom
+                    controls.maxZoom = 50;   // Allow much farther zoom
+                    controls.zoomSpeed = 2;  // Faster zoom
+                    controls.orbitSpeed = 1.5; // Better orbit control
+                    controls.panSpeed = 1.2;   // Better pan control
+                    controls.dampening = 0.1;  // Smoother movement
+                }
+                
                 if (navigator.xr) {
                     await initWebXR();
                 }
 
                 loading.classList.add('hidden');
-                updateStatus('PLY loader initialized • Ready for 4D PLY sequences', 'success');
+                updateStatus('Enhanced PLY loader ready • Better zoom & controls', 'success');
                 
-                // Enable controls
-                loadBtn.disabled = false;
                 sequenceBtn.disabled = false;
-                
                 startRenderLoop();
 
             } catch (error) {
-                console.error('gsplat.js PLY loader initialization failed:', error);
+                console.error('Enhanced PLY loader initialization failed:', error);
                 updateStatus(`Initialization failed: ${error.message}`, 'error');
                 loading.classList.add('hidden');
             }
         }
 
-        // Start render loop
+        // Enhanced render loop with FPS monitoring
         function startRenderLoop() {
+            let lastFrameTime = Date.now();
+            let frameCount = 0;
+            let fpsUpdateTime = Date.now();
+
             function render() {
+                // FPS calculation
+                const now = Date.now();
+                frameCount++;
+                
+                if (now - fpsUpdateTime >= 1000) {
+                    actualFps = Math.round((frameCount * 1000) / (now - fpsUpdateTime));
+                    actualFpsSpan.textContent = actualFps;
+                    frameCount = 0;
+                    fpsUpdateTime = now;
+                }
+
                 if (controls) controls.update();
                 if (renderer && scene && camera) {
                     renderer.render(scene, camera);
                 }
+                
+                lastFrameTime = now;
                 requestAnimationFrame(render);
             }
             render();
         }
 
-        // Load PLY sequence from folder
+        // Enhanced PLY sequence loading with preloading
         async function loadPLYSequence(files) {
             try {
                 loading.classList.remove('hidden');
                 updateLoadingText('Loading PLY sequence...');
                 
-                // Filter and sort PLY files
                 const plyFiles = Array.from(files)
                     .filter(file => file.name.endsWith('.ply'))
                     .sort((a, b) => {
-                        // Extract frame numbers for sorting
                         const aNum = parseInt(a.name.match(/\d+/)?.[0] || '0');
                         const bNum = parseInt(b.name.match(/\d+/)?.[0] || '0');
                         return aNum - bNum;
@@ -407,26 +463,26 @@
                     throw new Error('No PLY files found in selection');
                 }
 
-                updateLoadingText(`Loading ${plyFiles.length} PLY files...`);
+                updateLoadingText(`Processing ${plyFiles.length} PLY files...`);
                 
                 plySequence = [];
+                preloadedSplats.clear();
                 
-                // Load each PLY file
+                // Load files with progress
                 for (let i = 0; i < plyFiles.length; i++) {
                     updateLoadingText(`Loading PLY ${i + 1}/${plyFiles.length}: ${plyFiles[i].name}`);
                     
                     try {
-                        // Create temporary scene for loading
                         const tempScene = new SPLAT.Scene();
-                        
-                        // Load PLY file
                         const splat = await SPLAT.PLYLoader.LoadFromFileAsync(
                             plyFiles[i],
                             tempScene,
-                            (progress) => {
-                                // Progress callback
-                            }
+                            (progress) => {}
                         );
+                        
+                        // Apply initial scale
+                        splat.scale = new SPLAT.Vector3(modelScale, modelScale, modelScale);
+                        splat.applyScale();
                         
                         plySequence.push({
                             splat: splat,
@@ -434,9 +490,13 @@
                             gaussianCount: splat.data.vertexCount
                         });
                         
+                        // Cache first few frames for smooth start
+                        if (i < 10) {
+                            preloadedSplats.set(i, splat);
+                        }
+                        
                     } catch (error) {
                         console.error(`Error loading ${plyFiles[i].name}:`, error);
-                        updateStatus(`Error loading ${plyFiles[i].name}: ${error.message}`, 'error');
                     }
                 }
 
@@ -444,7 +504,7 @@
                     throw new Error('No PLY files could be loaded');
                 }
 
-                // Set up animation parameters
+                // Set up animation
                 totalDuration = plySequence.length / fps;
                 currentFrameIndex = 0;
                 currentTime = 0;
@@ -458,11 +518,13 @@
                 frameInfo.textContent = `Frame: 1/${plySequence.length}`;
 
                 loading.classList.add('hidden');
-                updateStatus(`PLY sequence loaded • ${plySequence.length} frames • ${totalDuration.toFixed(1)}s duration`, 'success');
+                updateStatus(`PLY sequence loaded • ${plySequence.length} frames • Enhanced playback`, 'success');
 
-                // Enable playback controls
                 playBtn.disabled = false;
                 arButton.disabled = false;
+
+                // Start background preloading
+                startBackgroundPreloading();
 
             } catch (error) {
                 loading.classList.add('hidden');
@@ -471,69 +533,55 @@
             }
         }
 
-        // Load single PLY file
-        async function loadSinglePLY(file) {
-            try {
-                loading.classList.remove('hidden');
-                updateLoadingText(`Loading ${file.name}...`);
-                
-                // Clear existing sequence
-                scene.reset();
-                plySequence = [];
-                
-                // Load PLY file
-                const splat = await SPLAT.PLYLoader.LoadFromFileAsync(
-                    file,
-                    scene,
-                    (progress) => {
-                        updateLoadingText(`Loading ${file.name}: ${(progress * 100).toFixed(0)}%`);
+        // Background preloading to reduce flickering
+        function startBackgroundPreloading() {
+            if (isPreloading) return;
+            isPreloading = true;
+            
+            // Preload frames in chunks
+            setTimeout(async () => {
+                for (let i = 10; i < plySequence.length; i += 10) {
+                    if (!isPreloading) break;
+                    
+                    const endIndex = Math.min(i + 10, plySequence.length);
+                    for (let j = i; j < endIndex; j++) {
+                        if (!preloadedSplats.has(j)) {
+                            preloadedSplats.set(j, plySequence[j].splat);
+                        }
                     }
-                );
-                
-                // Update UI
-                gaussianCountSpan.textContent = splat.data.vertexCount.toLocaleString();
-                frameInfo.textContent = `Single PLY: ${file.name}`;
-                totalDurationSpan.textContent = '0.00';
-                currentTimeSpan.textContent = '0.00';
-
-                loading.classList.add('hidden');
-                updateStatus(`PLY file loaded • ${splat.data.vertexCount.toLocaleString()} gaussians`, 'success');
-
-                // Enable AR but not playback
-                playBtn.disabled = true;
-                arButton.disabled = false;
-
-            } catch (error) {
-                loading.classList.add('hidden');
-                updateStatus(`Failed to load PLY: ${error.message}`, 'error');
-                console.error('PLY loading failed:', error);
-            }
+                    
+                    // Yield control to prevent blocking
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                isPreloading = false;
+            }, 1000);
         }
 
-        // Display specific frame
+        // Enhanced frame display with smooth transitions
         function displayFrame(frameIndex) {
             if (frameIndex < 0 || frameIndex >= plySequence.length) return;
             
-            // Clear scene
+            const targetSplat = plySequence[frameIndex].splat;
+            
+            // Quick scene update
             scene.reset();
+            scene.addObject(targetSplat);
             
-            // Add current frame's splat
-            scene.addObject(plySequence[frameIndex].splat);
-            
-            // Update UI
+            // Update tracking
             currentFrameIndex = frameIndex;
             currentTime = frameIndex / fps;
             
+            // Update UI
             currentTimeSpan.textContent = currentTime.toFixed(2);
             gaussianCountSpan.textContent = plySequence[frameIndex].gaussianCount.toLocaleString();
             frameInfo.textContent = `Frame: ${frameIndex + 1}/${plySequence.length}`;
             
             // Update timeline
-            const progress = (frameIndex / (plySequence.length - 1)) * 100;
+            const progress = (frameIndex / Math.max(1, plySequence.length - 1)) * 100;
             timelineProgress.style.width = `${progress}%`;
         }
 
-        // Toggle playback
+        // Enhanced playback with variable speed
         function togglePlayback() {
             if (plySequence.length === 0) return;
             
@@ -552,13 +600,11 @@
             }
         }
 
-        // Animation loop
+        // Enhanced animation loop
         function animate() {
             if (!isPlaying) return;
             
-            const elapsed = (Date.now() - animationStartTime) / 1000;
-            
-            // Loop animation
+            const elapsed = (Date.now() - animationStartTime) / 1000 * playbackSpeed;
             currentTime = elapsed % totalDuration;
             const frameIndex = Math.floor(currentTime * fps) % plySequence.length;
             
@@ -569,7 +615,43 @@
             animationId = requestAnimationFrame(animate);
         }
 
-        // Seek to time
+        // Control functions
+        function updatePlaybackSpeed() {
+            playbackSpeed = parseFloat(speedSlider.value);
+            speedValue.textContent = playbackSpeed.toFixed(1) + 'x';
+            
+            if (isPlaying) {
+                animationStartTime = Date.now() - (currentTime * 1000);
+            }
+        }
+
+        function updateScale() {
+            modelScale = parseFloat(scaleSlider.value);
+            scaleValue.textContent = modelScale.toFixed(1) + 'x';
+            
+            // Apply scale to current frame
+            if (plySequence.length > 0 && currentFrameIndex < plySequence.length) {
+                const currentSplat = plySequence[currentFrameIndex].splat;
+                currentSplat.scale = new SPLAT.Vector3(modelScale, modelScale, modelScale);
+                currentSplat.applyScale();
+                
+                // Apply to all loaded frames
+                plySequence.forEach(frame => {
+                    frame.splat.scale = new SPLAT.Vector3(modelScale, modelScale, modelScale);
+                    frame.splat.applyScale();
+                });
+            }
+        }
+
+        function resetCamera() {
+            if (controls) {
+                controls.reset();
+                camera.position = new SPLAT.Vector3(0, 1.6, 2);
+                camera.rotation = new SPLAT.Quaternion(0, 0, 0, 1);
+                updateStatus('Camera reset', 'success');
+            }
+        }
+
         function seekTime(event) {
             if (plySequence.length === 0) return;
             
@@ -585,21 +667,20 @@
             }
         }
 
-        // WebXR initialization
+        // WebXR and AR functions
         async function initWebXR() {
             if (!navigator.xr) return;
             
             try {
                 const supported = await navigator.xr.isSessionSupported('immersive-ar');
                 if (supported) {
-                    updateStatus('AR supported • Ready for immersive experience', 'success');
+                    updateStatus('AR supported • Enhanced experience ready', 'success');
                 }
             } catch (error) {
                 console.log('WebXR not supported:', error);
             }
         }
 
-        // Start AR session
         async function startAR() {
             if (!navigator.xr) {
                 updateStatus('WebXR not supported', 'error');
@@ -607,19 +688,18 @@
             }
 
             if (plySequence.length === 0 && scene.objects.length === 0) {
-                updateStatus('Load a PLY file first', 'error');
+                updateStatus('Load a PLY sequence first', 'error');
                 return;
             }
 
             try {
                 loading.classList.remove('hidden');
-                updateLoadingText('Starting AR session...');
+                updateLoadingText('Starting enhanced AR session...');
 
                 arSession = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local', 'hit-test']
                 });
 
-                // Set up WebXR with gsplat.js renderer
                 await renderer.setXRSession(arSession);
                 
                 arSession.addEventListener('end', () => {
@@ -628,7 +708,7 @@
                 });
 
                 loading.classList.add('hidden');
-                updateStatus('🚀 AR Session Active • 4D PLY Sequence in AR!', 'success');
+                updateStatus('🚀 Enhanced AR Active • 4D PLY Sequence!', 'success');
 
             } catch (error) {
                 loading.classList.add('hidden');
@@ -637,28 +717,17 @@
             }
         }
 
-        // File input handlers
-        document.getElementById('fileInput').addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file && file.name.endsWith('.ply')) {
-                updateStatus(`Loading ${file.name}...`);
-                await loadSinglePLY(file);
-            } else {
-                updateStatus('Please select a PLY file', 'error');
-            }
-        });
-
+        // Event listeners
         document.getElementById('folderInput').addEventListener('change', async (event) => {
             const files = event.target.files;
             if (files && files.length > 0) {
-                updateStatus(`Loading PLY sequence...`);
+                updateStatus(`Loading enhanced PLY sequence...`);
                 await loadPLYSequence(files);
             } else {
                 updateStatus('Please select a folder with PLY files', 'error');
             }
         });
 
-        // Utility functions
         function updateStatus(message, type = '') {
             status.textContent = message;
             status.className = `status ${type}`;
@@ -676,7 +745,6 @@
             loadingText.textContent = text;
         }
 
-        // Window resize handler
         window.addEventListener('resize', () => {
             if (renderer) {
                 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -690,10 +758,13 @@
         window.togglePlayback = togglePlayback;
         window.seekTime = seekTime;
         window.startAR = startAR;
+        window.updatePlaybackSpeed = updatePlaybackSpeed;
+        window.updateScale = updateScale;
+        window.resetCamera = resetCamera;
 
-        // Initialize when page loads
+        // Initialize
         window.addEventListener('load', () => {
-            updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Loading PLY loader...`);
+            updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Loading enhanced PLY loader...`);
             setTimeout(initGsplat, 500);
         });
 
