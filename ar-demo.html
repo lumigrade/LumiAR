@@ -3,10 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV AR - iPhone Optimized</title>
-    
-    <!-- Model-viewer for iOS compatibility -->
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <title>4DVV AR - Point Interpolation Enhanced</title>
     
     <style>
         * {
@@ -19,91 +16,104 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            overflow-x: hidden;
+            overflow: hidden;
+        }
+
+        #canvas3d {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            background: #000;
         }
 
         .header {
-            padding: 20px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            z-index: 100;
             text-align: center;
-            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            z-index: 100;
             backdrop-filter: blur(10px);
         }
 
-        .device-info {
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-            margin: 20px;
-            padding: 15px;
-            border-radius: 15px;
-            text-align: center;
-        }
-
-        .device-info h3 {
-            color: #FFC107;
-            margin-bottom: 10px;
-        }
-
-        .viewer-container {
-            position: relative;
-            height: 60vh;
-            margin: 20px;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-        }
-
-        model-viewer {
-            width: 100%;
-            height: 100%;
-            background-color: #1a1a1a;
-            --progress-bar-color: #4CAF50;
-            --poster-color: transparent;
-        }
-
-        .animation-controls {
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.2);
-            text-align: center;
-        }
-
-        .playback-controls {
+        .main-controls {
             display: flex;
-            justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
         }
 
         .control-btn {
             background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.2);
             color: white;
-            padding: 12px 20px;
-            border-radius: 25px;
-            font-size: 14px;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
             cursor: pointer;
             transition: all 0.3s ease;
         }
 
         .control-btn:hover, .control-btn.active {
-            background: rgba(76, 175, 80, 0.3);
+            background: rgba(76, 175, 80, 0.5);
             border-color: #4CAF50;
         }
 
         .control-btn:disabled {
-            opacity: 0.5;
+            opacity: 0.3;
             cursor: not-allowed;
         }
 
-        .timeline-container {
-            margin: 20px 0;
+        .ar-button {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            border: none;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .ar-button:disabled {
+            background: rgba(255, 255, 255, 0.2);
+            box-shadow: none;
+            cursor: not-allowed;
         }
 
         .timeline {
-            width: 100%;
-            height: 8px;
+            width: 300px;
+            height: 6px;
             background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
+            border-radius: 3px;
             cursor: pointer;
             position: relative;
         }
@@ -111,145 +121,91 @@
         .timeline-progress {
             height: 100%;
             background: linear-gradient(90deg, #4CAF50, #45a049);
-            border-radius: 4px;
+            border-radius: 3px;
             width: 0%;
             transition: width 0.1s ease;
         }
 
         .frame-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-            margin-top: 10px;
+            font-size: 11px;
             opacity: 0.8;
-        }
-
-        .ar-section {
-            padding: 20px;
-            text-align: center;
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .ar-button {
-            background: linear-gradient(45deg, #4CAF50, #45a049);
-            border: none;
-            color: white;
-            padding: 15px 30px;
-            border-radius: 30px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-            transition: all 0.3s ease;
-        }
-
-        .ar-button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
-        }
-
-        .ar-button:disabled {
-            background: rgba(255, 255, 255, 0.2);
-            box-shadow: none;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .ar-instructions {
-            background: rgba(76, 175, 80, 0.1);
-            border: 1px solid rgba(76, 175, 80, 0.3);
-            margin: 20px;
-            padding: 15px;
-            border-radius: 15px;
-            text-align: center;
-            font-size: 14px;
-        }
-
-        .ar-instructions h4 {
-            color: #4CAF50;
-            margin-bottom: 10px;
-        }
-
-        .enhancement-controls {
-            background: rgba(138, 43, 226, 0.1);
-            border: 1px solid rgba(138, 43, 226, 0.3);
-            margin: 20px;
-            padding: 15px;
-            border-radius: 15px;
             text-align: center;
         }
 
-        .enhancement-controls h4 {
-            color: #8A2BE2;
-            margin-bottom: 10px;
-        }
-
-        .enhancement-btn {
+        .interpolation-controls {
             background: rgba(138, 43, 226, 0.2);
+            border: 1px solid rgba(138, 43, 226, 0.3);
+            border-radius: 15px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .interpolation-controls h4 {
+            color: #8A2BE2;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .interp-options {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .interp-btn {
+            background: rgba(138, 43, 226, 0.3);
             border: 1px solid #8A2BE2;
             color: white;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 6px 10px;
+            border-radius: 12px;
+            font-size: 10px;
             cursor: pointer;
-            margin: 5px;
             transition: all 0.3s ease;
         }
 
-        .enhancement-btn:hover, .enhancement-btn.active {
-            background: rgba(138, 43, 226, 0.4);
+        .interp-btn:hover, .interp-btn.active {
+            background: rgba(138, 43, 226, 0.6);
         }
 
-        .status-bar {
-            padding: 15px 20px;
-            background: rgba(0, 0, 0, 0.3);
+        .status {
+            position: fixed;
+            top: 70px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 10px;
             font-size: 12px;
             text-align: center;
+            z-index: 100;
         }
 
-        .error-message, .success-message {
-            padding: 10px;
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 15px;
             text-align: center;
-            border-radius: 10px;
-            margin: 10px 20px;
+            z-index: 200;
         }
 
-        .error-message {
-            color: #ff6b6b;
-            background: rgba(255, 107, 107, 0.1);
-        }
-
-        .success-message {
-            color: #4CAF50;
-            background: rgba(76, 175, 80, 0.1);
-        }
-
-        .loading-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-        }
-
-        .loading-overlay.hidden {
+        .loading.hidden {
             display: none;
         }
 
         .spinner {
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             border: 3px solid rgba(255, 255, 255, 0.1);
             border-left: 3px solid #4CAF50;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-bottom: 15px;
+            margin: 0 auto 10px;
         }
 
         @keyframes spin {
@@ -257,430 +213,430 @@
             100% { transform: rotate(360deg); }
         }
 
-        .test-section {
-            padding: 20px;
-            text-align: center;
+        .error {
+            background: rgba(255, 107, 107, 0.1);
+            border: 1px solid #ff6b6b;
+            color: #ff6b6b;
         }
 
-        .test-btn {
-            background: rgba(255, 193, 7, 0.2);
-            border: 1px solid #FFC107;
-            color: white;
-            padding: 12px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            cursor: pointer;
-            margin: 5px;
-            transition: all 0.3s ease;
-        }
-
-        .test-btn:hover {
-            background: rgba(255, 193, 7, 0.4);
+        .success {
+            background: rgba(76, 175, 80, 0.1);
+            border: 1px solid #4CAF50;
+            color: #4CAF50;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV AR Player - iPhone Optimized</h1>
-        <p>Auto-Placement + Human Scale + Enhanced Point Cloud Visibility</p>
+        <h1>🎭 4DVV AR - Point Interpolation Enhanced</h1>
+        <p>Dense Point Cloud Generation for Better AR Visibility</p>
     </div>
 
-    <!-- Device Detection -->
-    <div class="device-info" id="deviceInfo">
-        <h3 id="deviceType">Detecting device...</h3>
-        <div id="deviceDetails"></div>
+    <div class="status" id="status">
+        Ready to load model • Point interpolation will enhance visibility
     </div>
 
-    <!-- AR Instructions -->
-    <div class="ar-instructions">
-        <h4>📱 AR Instructions</h4>
-        <div id="arInstructions">
-            <strong>iPhone:</strong> Model auto-places on first detected surface at human scale<br>
-            <strong>Android:</strong> Tap surface to place model<br>
-            <strong>Both:</strong> Use timeline to animate through 400 frames at 25fps
-        </div>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div id="loadingText">Initializing Three.js + WebXR...</div>
     </div>
 
-    <!-- Point Cloud Enhancement Controls -->
-    <div class="enhancement-controls">
-        <h4>✨ Point Cloud Enhancement</h4>
-        <button class="enhancement-btn" onclick="toggleHighContrast()">🔆 High Contrast</button>
-        <button class="enhancement-btn" onclick="toggleGlowEffect()">✨ Glow Effect</button>
-        <button class="enhancement-btn" onclick="toggleOutlineMode()">📐 Outline Mode</button>
-        <button class="enhancement-btn" onclick="resetEnhancements()">🔄 Reset</button>
-        <div style="margin-top: 10px; font-size: 12px; opacity: 0.8;">
-            Improves visibility on bright surfaces and lighting conditions
-        </div>
-    </div>
+    <canvas id="canvas3d"></canvas>
 
-    <div class="viewer-container">
-        <model-viewer
-            id="frameViewer"
-            src=""
-            alt="4DVV Frame Sequence"
-            
-            ar
-            ar-modes="webxr scene-viewer quick-look"
-            ar-scale="fixed"
-            ar-placement="floor"
-            
-            camera-controls
-            auto-rotate
-            auto-rotate-delay="5000"
-            
-            environment-image="neutral"
-            exposure="1.0"
-            shadow-intensity="0.3"
-            
-            loading="eager"
-            reveal="auto"
-            
-            interaction-prompt="when-focused">
-            
-            <div slot="poster" class="loading-overlay" id="loadingOverlay">
-                <div class="spinner"></div>
-                <div id="loadingText">Ready to load model sequence</div>
-            </div>
-        </model-viewer>
-    </div>
-
-    <div class="animation-controls">
-        <div class="playback-controls">
+    <div class="controls">
+        <div class="main-controls">
+            <button class="control-btn" onclick="loadFrame()" disabled id="loadBtn">📁 Load</button>
             <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
-            <button class="control-btn" onclick="previousFrame()" disabled>⮜ Prev</button>
-            <button class="control-btn" onclick="nextFrame()" disabled>⭢ Next</button>
-            <button class="control-btn" onclick="resetToFrame1()" disabled>🔄 Reset</button>
+            <button class="control-btn" onclick="previousFrame()" disabled>⮜</button>
+            <button class="control-btn" onclick="nextFrame()" disabled>⭢</button>
+            <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
         </div>
         
-        <div class="timeline-container">
-            <div class="timeline" onclick="seekToPosition(event)">
-                <div class="timeline-progress" id="timelineProgress"></div>
+        <div class="timeline" onclick="seekFrame(event)">
+            <div class="timeline-progress" id="timelineProgress"></div>
+        </div>
+        
+        <div class="frame-info">
+            <span>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></span>
+            <span style="margin-left: 15px;">Points: <span id="pointCount">0</span></span>
+        </div>
+
+        <div class="interpolation-controls">
+            <h4>✨ Point Interpolation</h4>
+            <div class="interp-options">
+                <button class="interp-btn active" onclick="setInterpolation(1)">Original</button>
+                <button class="interp-btn" onclick="setInterpolation(2)">2x Dense</button>
+                <button class="interp-btn" onclick="setInterpolation(4)">4x Dense</button>
+                <button class="interp-btn" onclick="setInterpolation(8)">8x Dense</button>
             </div>
-            <div class="frame-info">
-                <span>Frame: <span id="currentFrame">0</span> / <span id="totalFrames">400</span></span>
-                <span>Enhancement: <span id="enhancementMode">Standard</span></span>
+            <div style="font-size: 10px; margin-top: 5px; opacity: 0.7; text-align: center;">
+                Higher density = Better visibility, Lower FPS
             </div>
         </div>
     </div>
 
-    <div class="ar-section">
-        <button class="ar-button" id="arButton" onclick="launchAR()" disabled>
-            🚀 Launch AR Experience
-        </button>
-        <div style="margin-top: 10px; font-size: 14px; opacity: 0.8;">
-            <span id="arStatus">Load model first to enable AR</span>
-        </div>
-    </div>
-
-    <!-- Test Section -->
-    <div class="test-section">
-        <h3 style="margin-bottom: 15px;">🧪 Model Loading</h3>
-        <button class="test-btn" onclick="loadFirstFrame()">Load Frame 1</button>
-        <button class="test-btn" onclick="testARScale()">Test AR Scale</button>
-        <div id="testResults" style="margin-top: 15px;"></div>
-    </div>
-
-    <div class="status-bar">
-        <div id="statusText">Ready to load model sequence</div>
-    </div>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r158/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.158.0/examples/js/loaders/GLTFLoader.js"></script>
 
     <script>
-        const viewer = document.getElementById('frameViewer');
-        const loadingOverlay = document.getElementById('loadingOverlay');
+        // Global variables
+        let scene, camera, renderer, arSession;
+        let currentModel = null;
+        let currentFrame = 1;
+        let totalFrames = 400;
+        let isPlaying = false;
+        let animationId = null;
+        let hitTestSource = null;
+        let lastHitResult = null;
+        let objectPlaced = false;
+        let interpolationFactor = 1;
+        let originalPointData = new Map(); // Cache for original point data
+        let frameCache = new Map();
+
+        // UI elements
+        const canvas = document.getElementById('canvas3d');
+        const loading = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
+        const status = document.getElementById('status');
+        const arButton = document.getElementById('arButton');
+        const loadBtn = document.getElementById('loadBtn');
+        const playBtn = document.getElementById('playBtn');
         const currentFrameSpan = document.getElementById('currentFrame');
         const totalFramesSpan = document.getElementById('totalFrames');
+        const pointCountSpan = document.getElementById('pointCount');
         const timelineProgress = document.getElementById('timelineProgress');
-        const playBtn = document.getElementById('playBtn');
-        const arButton = document.getElementById('arButton');
-        const arStatus = document.getElementById('arStatus');
-        const statusText = document.getElementById('statusText');
-        const enhancementMode = document.getElementById('enhancementMode');
-
-        let isPlaying = false;
-        let currentFrame = 0;
-        let totalFrames = 400;
-        let animationInterval = null;
-        let lastFrameTime = 0;
-        let targetFPS = 25;
-        let modelsLoaded = false;
-        let frameCache = new Map();
-        let isIOS = false;
-        let isAndroid = false;
-
-        // Enhancement states
-        let highContrast = false;
-        let glowEffect = false;
-        let outlineMode = false;
 
         // Device detection
-        function detectDevice() {
-            isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-            isAndroid = /Android/.test(navigator.userAgent);
-            
-            const deviceInfo = document.getElementById('deviceInfo');
-            const deviceType = document.getElementById('deviceType');
-            const deviceDetails = document.getElementById('deviceDetails');
-            
-            if (isIOS) {
-                deviceType.textContent = '🍎 iPhone 15 Pro Max Detected';
-                deviceDetails.innerHTML = `
-                    <div>✅ AR Mode: AR Quick Look (Native iOS)</div>
-                    <div>📏 Scale: Human height (1.7-1.8m)</div>
-                    <div>📍 Placement: Auto on first surface</div>
-                    <div>🎯 No placement indicators (clean AR)</div>
-                `;
-                deviceInfo.style.borderColor = '#4CAF50';
-                deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
-                
-                // iPhone-specific model-viewer settings
-                viewer.setAttribute('ar-scale', 'fixed');
-                viewer.setAttribute('scale', '1.0 1.0 1.0'); // Human scale
-                
-            } else if (isAndroid) {
-                deviceType.textContent = '🤖 Tab S9 Detected';
-                deviceDetails.innerHTML = `
-                    <div>✅ AR Mode: WebXR (Chrome)</div>
-                    <div>📏 Scale: Human height (1.7-1.8m)</div>
-                    <div>📱 Placement: Tap surface to place</div>
-                    <div>🎯 Surface detection enabled</div>
-                `;
-                deviceInfo.style.borderColor = '#4CAF50';
-                deviceInfo.style.background = 'rgba(76, 175, 80, 0.1)';
-                
-            } else {
-                deviceType.textContent = '💻 Desktop Device';
-                deviceDetails.innerHTML = `
-                    <div>⚠️ AR Mode: Limited support</div>
-                    <div>ℹ️ Best experience on mobile</div>
-                `;
-                deviceInfo.style.borderColor = '#FFC107';
-            }
-            
-            statusText.textContent = `Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • HTTPS: ${location.protocol === 'https:' ? '✅' : '❌'}`;
-        }
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        const isAndroid = /Android/.test(navigator.userAgent);
 
-        // Enhanced point cloud visibility functions
-        function toggleHighContrast() {
-            highContrast = !highContrast;
-            updateEnhancements();
+        // Initialize Three.js scene
+        function initScene() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
             
-            if (highContrast) {
-                viewer.setAttribute('exposure', '2.0');
-                viewer.setAttribute('shadow-intensity', '0.8');
-                enhancementMode.textContent = 'High Contrast';
-                event.target.classList.add('active');
-                showSuccess('High contrast enabled - better visibility on bright surfaces');
-            } else {
-                viewer.setAttribute('exposure', '1.0');
-                viewer.setAttribute('shadow-intensity', '0.3');
-                if (!glowEffect && !outlineMode) {
-                    enhancementMode.textContent = 'Standard';
-                }
-                event.target.classList.remove('active');
-            }
-        }
-
-        function toggleGlowEffect() {
-            glowEffect = !glowEffect;
-            updateEnhancements();
-            
-            if (glowEffect) {
-                viewer.style.setProperty('--poster-color', 'rgba(76, 175, 80, 0.1)');
-                viewer.setAttribute('tone-mapping', 'aces');
-                enhancementMode.textContent = enhancementMode.textContent.includes('Standard') ? 'Glow Effect' : enhancementMode.textContent + ' + Glow';
-                event.target.classList.add('active');
-                showSuccess('Glow effect enabled - enhanced point visibility');
-            } else {
-                viewer.style.removeProperty('--poster-color');
-                viewer.setAttribute('tone-mapping', 'neutral');
-                event.target.classList.remove('active');
-            }
-        }
-
-        function toggleOutlineMode() {
-            outlineMode = !outlineMode;
-            updateEnhancements();
-            
-            if (outlineMode) {
-                // Apply CSS filter for outline effect
-                viewer.style.filter = 'contrast(150%) brightness(120%) saturate(150%)';
-                enhancementMode.textContent = enhancementMode.textContent.includes('Standard') ? 'Outline Mode' : enhancementMode.textContent + ' + Outline';
-                event.target.classList.add('active');
-                showSuccess('Outline mode enabled - enhanced edge definition');
-            } else {
-                viewer.style.filter = '';
-                event.target.classList.remove('active');
-            }
-        }
-
-        function resetEnhancements() {
-            highContrast = false;
-            glowEffect = false;
-            outlineMode = false;
-            
-            // Reset all model-viewer properties
-            viewer.setAttribute('exposure', '1.0');
-            viewer.setAttribute('shadow-intensity', '0.3');
-            viewer.setAttribute('tone-mapping', 'neutral');
-            viewer.style.removeProperty('--poster-color');
-            viewer.style.filter = '';
-            
-            // Reset button states
-            document.querySelectorAll('.enhancement-btn').forEach(btn => {
-                btn.classList.remove('active');
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: canvas, 
+                antialias: true, 
+                alpha: true,
+                powerPreference: "high-performance"
             });
-            
-            enhancementMode.textContent = 'Standard';
-            showSuccess('All enhancements reset to standard rendering');
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.xr.enabled = true;
+            renderer.shadowMap.enabled = false; // Disable for performance
+
+            // Lighting optimized for point clouds
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            updateStatus('Three.js initialized • Ready to load frames');
         }
 
-        function updateEnhancements() {
-            let modes = [];
-            if (highContrast) modes.push('High Contrast');
-            if (glowEffect) modes.push('Glow');
-            if (outlineMode) modes.push('Outline');
-            
-            enhancementMode.textContent = modes.length > 0 ? modes.join(' + ') : 'Standard';
-        }
+        // Enhanced point interpolation function
+        function interpolatePoints(originalPositions, originalColors, factor) {
+            if (factor === 1) {
+                return { positions: originalPositions, colors: originalColors };
+            }
 
-        // Load and test first frame
-        async function loadFirstFrame() {
-            const testResults = document.getElementById('testResults');
-            testResults.innerHTML = '<div style="color: #FFC107;">Loading first frame...</div>';
+            const newPositions = [];
+            const newColors = [];
             
-            loadingOverlay.classList.remove('hidden');
-            loadingText.textContent = 'Loading frame 1...';
+            // Create a spatial hash for finding neighbors
+            const spatialHash = new Map();
+            const hashSize = 0.1; // Adjust based on your point cloud scale
             
-            try {
-                const frameUrl = 'data/frame_000001.glb';
-                console.log('Loading first frame:', frameUrl);
+            // Hash all original points
+            for (let i = 0; i < originalPositions.length; i += 3) {
+                const x = originalPositions[i];
+                const y = originalPositions[i + 1];
+                const z = originalPositions[i + 2];
                 
-                // Load frame in model-viewer
-                viewer.src = frameUrl;
-                currentFrame = 1;
+                const hashKey = `${Math.floor(x/hashSize)}_${Math.floor(y/hashSize)}_${Math.floor(z/hashSize)}`;
                 
-                // Wait for load
-                await new Promise((resolve, reject) => {
-                    const onLoad = () => {
-                        viewer.removeEventListener('load', onLoad);
-                        viewer.removeEventListener('error', onError);
-                        resolve();
-                    };
-                    
-                    const onError = (event) => {
-                        viewer.removeEventListener('load', onLoad);
-                        viewer.removeEventListener('error', onError);
-                        reject(new Error(event.detail?.message || 'Load failed'));
-                    };
-                    
-                    viewer.addEventListener('load', onLoad);
-                    viewer.addEventListener('error', onError);
+                if (!spatialHash.has(hashKey)) {
+                    spatialHash.set(hashKey, []);
+                }
+                spatialHash.get(hashKey).push(i / 3);
+            }
+
+            // Add original points
+            for (let i = 0; i < originalPositions.length; i++) {
+                newPositions.push(originalPositions[i]);
+            }
+            for (let i = 0; i < originalColors.length; i++) {
+                newColors.push(originalColors[i]);
+            }
+
+            // Interpolate between nearby points
+            const maxDistance = 0.2; // Maximum distance for interpolation
+            const interpolationsPerPair = factor - 1;
+
+            for (let i = 0; i < originalPositions.length; i += 3) {
+                const x1 = originalPositions[i];
+                const y1 = originalPositions[i + 1];
+                const z1 = originalPositions[i + 2];
+                
+                const r1 = originalColors[i];
+                const g1 = originalColors[i + 1];
+                const b1 = originalColors[i + 2];
+
+                // Find nearby points in the spatial hash
+                const hashKey = `${Math.floor(x1/hashSize)}_${Math.floor(y1/hashSize)}_${Math.floor(z1/hashSize)}`;
+                const nearbyHashes = [
+                    hashKey,
+                    `${Math.floor(x1/hashSize)+1}_${Math.floor(y1/hashSize)}_${Math.floor(z1/hashSize)}`,
+                    `${Math.floor(x1/hashSize)}_${Math.floor(y1/hashSize)+1}_${Math.floor(z1/hashSize)}`,
+                    `${Math.floor(x1/hashSize)}_${Math.floor(y1/hashSize)}_${Math.floor(z1/hashSize)+1}`,
+                ];
+
+                const neighbors = [];
+                nearbyHashes.forEach(hash => {
+                    if (spatialHash.has(hash)) {
+                        neighbors.push(...spatialHash.get(hash));
+                    }
                 });
+
+                // Interpolate with a few closest neighbors
+                let addedInterpolations = 0;
+                for (let neighborIdx of neighbors) {
+                    if (neighborIdx * 3 === i || addedInterpolations >= 2) continue; // Skip self and limit interpolations
+                    
+                    const j = neighborIdx * 3;
+                    const x2 = originalPositions[j];
+                    const y2 = originalPositions[j + 1];
+                    const z2 = originalPositions[j + 2];
+                    
+                    const distance = Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2);
+                    if (distance > maxDistance) continue;
+                    
+                    const r2 = originalColors[j];
+                    const g2 = originalColors[j + 1];
+                    const b2 = originalColors[j + 2];
+
+                    // Create interpolated points
+                    for (let k = 1; k <= interpolationsPerPair; k++) {
+                        const t = k / (interpolationsPerPair + 1);
+                        
+                        // Interpolate position
+                        newPositions.push(x1 + (x2 - x1) * t);
+                        newPositions.push(y1 + (y2 - y1) * t);
+                        newPositions.push(z1 + (z2 - z1) * t);
+                        
+                        // Interpolate color
+                        newColors.push(r1 + (r2 - r1) * t);
+                        newColors.push(g1 + (g2 - g1) * t);
+                        newColors.push(b1 + (b2 - b1) * t);
+                    }
+                    
+                    addedInterpolations++;
+                }
+            }
+
+            return {
+                positions: new Float32Array(newPositions),
+                colors: new Float32Array(newColors)
+            };
+        }
+
+        // Create enhanced point cloud material
+        function createPointCloudMaterial() {
+            return new THREE.ShaderMaterial({
+                uniforms: {
+                    pointSize: { value: isIOS ? 8.0 : 6.0 },
+                    opacity: { value: 0.9 }
+                },
+                vertexShader: `
+                    attribute vec3 color;
+                    varying vec3 vColor;
+                    uniform float pointSize;
+
+                    void main() {
+                        vColor = color;
+                        vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+                        gl_PointSize = pointSize * (300.0 / -mvPosition.z);
+                        gl_Position = projectionMatrix * mvPosition;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    uniform float opacity;
+
+                    void main() {
+                        // Create circular points with soft edges
+                        vec2 center = gl_PointCoord - vec2(0.5);
+                        float dist = length(center);
+                        if (dist > 0.5) discard;
+
+                        // Soft gradient from center to edge
+                        float alpha = 1.0 - smoothstep(0.2, 0.5, dist);
+                        
+                        // Enhanced brightness for AR visibility
+                        vec3 enhancedColor = vColor * 1.5;
+                        gl_FragColor = vec4(enhancedColor, alpha * opacity);
+                    }
+                `,
+                transparent: true,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+        }
+
+        // Load GLB frame and extract point data
+        async function loadGLBFrame(frameNumber) {
+            return new Promise((resolve, reject) => {
+                const frameFile = `data/frame_${String(frameNumber).padStart(6, '0')}.glb`;
+                const loader = new THREE.GLTFLoader();
                 
-                loadingOverlay.classList.add('hidden');
-                modelsLoaded = true;
-                enableControls();
+                loader.load(
+                    frameFile,
+                    (gltf) => {
+                        // Extract point cloud data from GLB
+                        const pointCloud = gltf.scene.children[0];
+                        if (!pointCloud || !pointCloud.geometry) {
+                            reject(new Error('No point cloud found in GLB'));
+                            return;
+                        }
+
+                        const geometry = pointCloud.geometry;
+                        const positions = geometry.attributes.position.array;
+                        const colors = geometry.attributes.color ? 
+                            geometry.attributes.color.array : 
+                            new Float32Array(positions.length).fill(1); // Default white
+
+                        resolve({ positions, colors });
+                    },
+                    (progress) => {
+                        const percent = (progress.loaded / progress.total * 100).toFixed(0);
+                        updateLoadingText(`Loading frame ${frameNumber}: ${percent}%`);
+                    },
+                    (error) => {
+                        reject(error);
+                    }
+                );
+            });
+        }
+
+        // Set interpolation factor
+        function setInterpolation(factor) {
+            interpolationFactor = factor;
+            
+            // Update button states
+            document.querySelectorAll('.interp-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // If model is loaded, reapply interpolation
+            if (currentModel) {
+                applyInterpolationToCurrentFrame();
+            }
+            
+            updateStatus(`Interpolation set to ${factor}x • ${factor === 1 ? 'Original' : 'Enhanced'} density`);
+        }
+
+        // Apply interpolation to current frame
+        async function applyInterpolationToCurrentFrame() {
+            if (!originalPointData.has(currentFrame)) return;
+            
+            const originalData = originalPointData.get(currentFrame);
+            const interpolatedData = interpolatePoints(
+                originalData.positions, 
+                originalData.colors, 
+                interpolationFactor
+            );
+            
+            // Update geometry
+            if (currentModel) {
+                const geometry = currentModel.geometry;
+                geometry.setAttribute('position', new THREE.BufferAttribute(interpolatedData.positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(interpolatedData.colors, 3));
+                geometry.attributes.position.needsUpdate = true;
+                geometry.attributes.color.needsUpdate = true;
                 
-                testResults.innerHTML = `
-                    <div class="success-message">
-                        ✅ Frame 1 loaded successfully!<br>
-                        Ready for AR and animation<br>
-                        <small>Scale optimized for human height</small>
-                    </div>
-                `;
-                
-                updateFrameDisplay();
-                enableAR();
-                
-                statusText.textContent = statusText.textContent + ' • Model loaded and scaled';
-                
-            } catch (error) {
-                console.error('Failed to load first frame:', error);
-                loadingOverlay.classList.add('hidden');
-                testResults.innerHTML = `
-                    <div class="error-message">
-                        ❌ Frame 1 loading failed<br>
-                        Error: ${error.message}<br>
-                        Check: data/frame_000001.glb exists and is valid
-                    </div>
-                `;
+                updatePointCount(interpolatedData.positions.length / 3);
             }
         }
 
-        // Test AR scale with human proportions
-        async function testARScale() {
-            if (!modelsLoaded) {
-                showError('Load Frame 1 first');
-                return;
-            }
-            
-            const testResults = document.getElementById('testResults');
-            testResults.innerHTML = '<div style="color: #FFC107;">Testing AR scale...</div>';
-            
-            // Apply proper human scale
-            if (isIOS) {
-                // iPhone AR Quick Look scale
-                viewer.setAttribute('scale', '1.0 1.0 1.0');
-                viewer.setAttribute('ar-scale', 'fixed');
-            } else {
-                // Android WebXR scale  
-                viewer.setAttribute('scale', '0.5 0.5 0.5');
-                viewer.setAttribute('ar-scale', 'auto');
-            }
-            
-            testResults.innerHTML = `
-                <div class="success-message">
-                    ✅ AR scale configured<br>
-                    Target: Human height 1.7-1.8m<br>
-                    Platform: ${isIOS ? 'iOS optimized' : 'Android optimized'}<br>
-                    <small>Ready for AR launch</small>
-                </div>
-            `;
-            
-            showSuccess('AR scale optimized for human proportions');
-        }
-
-        // Enhanced frame loading
+        // Set current frame with interpolation
         async function setFrame(frameNumber) {
             if (frameNumber < 1 || frameNumber > totalFrames) return;
             
             try {
-                const frameUrl = `data/frame_${String(frameNumber).padStart(6, '0')}.glb`;
-                viewer.src = frameUrl;
-                currentFrame = frameNumber;
-                updateFrameDisplay();
+                // Check if we have original data cached
+                if (!originalPointData.has(frameNumber)) {
+                    const data = await loadGLBFrame(frameNumber);
+                    originalPointData.set(frameNumber, data);
+                }
                 
-                return new Promise((resolve, reject) => {
-                    const onLoad = () => {
-                        viewer.removeEventListener('load', onLoad);
-                        viewer.removeEventListener('error', onError);
-                        resolve();
-                    };
-                    
-                    const onError = (event) => {
-                        viewer.removeEventListener('load', onLoad);
-                        viewer.removeEventListener('error', onError);
-                        reject(new Error(`Frame ${frameNumber} load failed`));
-                    };
-                    
-                    viewer.addEventListener('load', onLoad);
-                    viewer.addEventListener('error', onError);
-                });
+                const originalData = originalPointData.get(frameNumber);
+                const interpolatedData = interpolatePoints(
+                    originalData.positions, 
+                    originalData.colors, 
+                    interpolationFactor
+                );
+                
+                // Remove current model
+                if (currentModel) {
+                    scene.remove(currentModel);
+                }
+                
+                // Create new point cloud
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(interpolatedData.positions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(interpolatedData.colors, 3));
+                
+                const material = createPointCloudMaterial();
+                currentModel = new THREE.Points(geometry, material);
+                
+                // Scale for human proportions (1.7-1.8m height)
+                const scale = isIOS ? 0.8 : 0.5;
+                currentModel.scale.setScalar(scale);
+                
+                // Position for AR placement
+                if (objectPlaced && lastHitResult) {
+                    currentModel.position.copy(lastHitResult.position);
+                }
+                
+                scene.add(currentModel);
+                currentFrame = frameNumber;
+                
+                updateFrameDisplay();
+                updatePointCount(interpolatedData.positions.length / 3);
                 
             } catch (error) {
-                console.error(`Error setting frame ${frameNumber}:`, error);
-                throw error;
+                console.error('Error setting frame:', error);
+                updateStatus(`Error loading frame ${frameNumber}: ${error.message}`, 'error');
+            }
+        }
+
+        // Load first frame
+        async function loadFrame() {
+            updateLoadingText('Loading first frame...');
+            loading.classList.remove('hidden');
+            
+            try {
+                await setFrame(1);
+                
+                // Enable controls
+                document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
+                arButton.disabled = false;
+                
+                loading.classList.add('hidden');
+                updateStatus('Frame loaded • Ready for AR and animation', 'success');
+                
+            } catch (error) {
+                loading.classList.add('hidden');
+                updateStatus(`Loading failed: ${error.message}`, 'error');
             }
         }
 
         // Animation controls
         function togglePlayback() {
-            if (!modelsLoaded) {
-                showError('Load frames first');
-                return;
-            }
-            
             isPlaying = !isPlaying;
             playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
             
@@ -692,24 +648,30 @@
         }
 
         function startAnimation() {
-            if (animationInterval) clearInterval(animationInterval);
+            if (animationId) cancelAnimationFrame(animationId);
             
-            const frameDuration = 1000 / targetFPS;
+            let lastTime = 0;
+            const frameRate = 25; // 25fps
+            const frameInterval = 1000 / frameRate;
             
-            animationInterval = setInterval(async () => {
-                try {
-                    await nextFrame();
-                } catch (error) {
-                    console.error('Animation frame error:', error);
-                    stopAnimation();
+            function animate(currentTime) {
+                if (currentTime - lastTime >= frameInterval) {
+                    nextFrame();
+                    lastTime = currentTime;
                 }
-            }, frameDuration);
+                
+                if (isPlaying) {
+                    animationId = requestAnimationFrame(animate);
+                }
+            }
+            
+            animationId = requestAnimationFrame(animate);
         }
 
         function stopAnimation() {
-            if (animationInterval) {
-                clearInterval(animationInterval);
-                animationInterval = null;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
             }
         }
 
@@ -723,132 +685,125 @@
             await setFrame(prevFrameNum);
         }
 
-        async function resetToFrame1() {
-            await setFrame(1);
+        function seekFrame(event) {
+            const rect = event.currentTarget.getBoundingClientRect();
+            const position = (event.clientX - rect.left) / rect.width;
+            const targetFrame = Math.max(1, Math.round(position * totalFrames));
+            setFrame(targetFrame);
         }
 
         function updateFrameDisplay() {
             currentFrameSpan.textContent = currentFrame;
             totalFramesSpan.textContent = totalFrames;
             
-            if (totalFrames > 0) {
-                const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
-                timelineProgress.style.width = `${Math.max(0, progress)}%`;
-            }
+            const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
+            timelineProgress.style.width = `${Math.max(0, progress)}%`;
         }
 
-        async function seekToPosition(event) {
-            if (!modelsLoaded) {
-                showError('Load frames first');
+        function updatePointCount(count) {
+            pointCountSpan.textContent = count.toLocaleString();
+        }
+
+        // WebXR AR functionality
+        async function startAR() {
+            if (!navigator.xr) {
+                updateStatus('WebXR not supported on this device', 'error');
                 return;
             }
-            
-            const rect = event.currentTarget.getBoundingClientRect();
-            const position = (event.clientX - rect.left) / rect.width;
-            const targetFrame = Math.max(1, Math.round(position * totalFrames));
-            
+
             try {
-                await setFrame(targetFrame);
-            } catch (error) {
-                showError(`Failed to seek to frame ${targetFrame}`);
-            }
-        }
+                updateLoadingText('Starting AR session...');
+                loading.classList.remove('hidden');
 
-        // Enable controls
-        function enableControls() {
-            const controls = document.querySelectorAll('.control-btn');
-            controls.forEach(btn => btn.disabled = false);
-        }
-
-        // Enable AR functionality  
-        function enableAR() {
-            arButton.disabled = false;
-            arStatus.textContent = isIOS ? 'AR ready! Auto-placement on first surface' : 'AR ready! Tap surface to place';
-            arButton.style.background = 'linear-gradient(45deg, #4CAF50, #45a049)';
-        }
-
-        // Launch AR
-        function launchAR() {
-            if (!modelsLoaded) {
-                showError('Load frames first');
-                return;
-            }
-            
-            if (!viewer.canActivateAR) {
-                showError('AR not available. Ensure HTTPS and compatible device.');
-                return;
-            }
-            
-            try {
-                viewer.activateAR();
-                arStatus.textContent = 'AR session starting...';
-                
-                if (isIOS) {
-                    showSuccess('AR starting - Model will auto-place on first detected surface');
-                } else {
-                    showSuccess('AR starting - Move device to scan surfaces, then tap to place');
+                const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!supported) {
+                    throw new Error('AR not supported');
                 }
+
+                arSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local', 'hit-test']
+                });
+
+                await renderer.xr.setSession(arSession);
+                
+                // Initialize hit testing
+                const referenceSpace = await arSession.requestReferenceSpace('viewer');
+                hitTestSource = await arSession.requestHitTestSource({ space: referenceSpace });
+
+                arSession.addEventListener('end', onARSessionEnd);
+
+                loading.classList.add('hidden');
+                updateStatus('AR session active • Move device to detect surfaces', 'success');
+                renderer.setAnimationLoop(renderAR);
+
             } catch (error) {
-                showError(`AR launch failed: ${error.message}`);
+                loading.classList.add('hidden');
+                updateStatus(`AR failed: ${error.message}`, 'error');
             }
+        }
+
+        // AR render loop
+        function renderAR(timestamp, frame) {
+            if (!frame) return;
+
+            // Hit testing for surface detection
+            if (hitTestSource && !objectPlaced) {
+                const hitTestResults = frame.getHitTestResults(hitTestSource);
+                
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const referenceSpace = renderer.xr.getReferenceSpace();
+                    const hitPose = hit.getPose(referenceSpace);
+                    
+                    if (hitPose && currentModel) {
+                        // Auto-place on first surface detection (iOS behavior)
+                        if (isIOS || !objectPlaced) {
+                            lastHitResult = {
+                                position: new THREE.Vector3().setFromMatrixPosition(hitPose.transform.matrix)
+                            };
+                            
+                            currentModel.position.copy(lastHitResult.position);
+                            objectPlaced = true;
+                            
+                            updateStatus('Model placed • Use timeline to animate', 'success');
+                        }
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onARSessionEnd() {
+            renderer.setAnimationLoop(null);
+            objectPlaced = false;
+            updateStatus('AR session ended');
         }
 
         // Utility functions
-        function showError(message) {
-            const existingError = document.querySelector('.error-message');
-            if (existingError) existingError.remove();
-            
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'error-message';
-            errorDiv.textContent = message;
-            document.body.insertBefore(errorDiv, document.querySelector('.viewer-container'));
-            
-            setTimeout(() => errorDiv.remove(), 5000);
+        function updateStatus(message, type = '') {
+            status.textContent = message;
+            status.className = `status ${type}`;
         }
 
-        function showSuccess(message) {
-            const existingSuccess = document.querySelector('.success-message');
-            if (existingSuccess) existingSuccess.remove();
-            
-            const successDiv = document.createElement('div');
-            successDiv.className = 'success-message';
-            successDiv.textContent = message;
-            document.body.insertBefore(successDiv, document.querySelector('.viewer-container'));
-            
-            setTimeout(() => successDiv.remove(), 3000);
+        function updateLoadingText(text) {
+            loadingText.textContent = text;
         }
 
-        // AR event listeners
-        viewer.addEventListener('ar-status', (event) => {
-            console.log('AR Status:', event.detail.status);
-            
-            switch(event.detail.status) {
-                case 'session-started':
-                    arStatus.textContent = isIOS ? 'AR active! Model will auto-place' : 'AR active! Tap surface to place model';
-                    break;
-                case 'object-placed':
-                    arStatus.textContent = 'Model placed! Use timeline to animate (25fps)';
-                    showSuccess('✅ Model placed at human scale - Use controls to animate');
-                    break;
-                case 'not-presenting':
-                    arStatus.textContent = 'AR session ended';
-                    break;
-                case 'failed':
-                    arStatus.textContent = 'AR session failed';
-                    showError('AR session failed to start');
-                    break;
-            }
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
         // Initialize
         window.addEventListener('load', () => {
-            detectDevice();
-            loadingOverlay.classList.add('hidden');
+            initScene();
+            loading.classList.add('hidden');
+            loadBtn.disabled = false;
             
-            // Auto-load first frame
-            setTimeout(() => {
-                loadFirstFrame();
-            }, 1000);
+            updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Click Load to begin`);
         });
     </script>
 </body>
