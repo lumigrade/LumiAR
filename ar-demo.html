@@ -330,11 +330,8 @@
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 
-                // IMPORTANT: Use VideoRenderProgram for .splatv files
-                renderer = new SPLAT.WebGLRenderer(canvas, {
-                    // Pass VideoRenderProgram class to handle 4D animation
-                    renderProgram: SPLAT.VideoRenderProgram
-                });
+                // Create standard renderer - VideoRenderProgram will be used automatically for Splatv objects
+                renderer = new SPLAT.WebGLRenderer(canvas);
                 
                 // Set up camera for human-scale viewing
                 camera.position = new SPLAT.Vector3(0, 1.6, 3);
