@@ -393,32 +393,37 @@
                 
                 // Clear previous frame from scene
                 if (currentGaussianSplat) {
-                    scene.remove(currentGaussianSplat);
+                    scene.removeObject(currentGaussianSplat);
                 }
                 
                 // Check cache first
                 if (frameCache.has(frameNumber)) {
                     updateLoadingText(`Loading cached frame ${frameNumber}...`);
                     currentGaussianSplat = frameCache.get(frameNumber);
-                    scene.add(currentGaussianSplat);
+                    scene.addObject(currentGaussianSplat);
                 } else {
-                    // Load PLY using gsplat.js native loader
+                    // Load PLY using gsplat.js native PLY loader
                     updateLoadingText(`Loading PLY: ${frameFile}...`);
                     
-                    // Create new Splat object
-                    const splatData = await SPLAT.PLYLoader.LoadAsync(frameFile, (progress) => {
+                    // Create progress callback
+                    const onProgress = (progress) => {
                         const percent = (progress * 100).toFixed(0);
                         updateLoadingText(`Loading frame ${frameNumber}: ${percent}%`);
-                    });
+                    };
                     
-                    currentGaussianSplat = new SPLAT.Splat(splatData);
+                    // Load PLY - NOTE: PLYLoader automatically adds to scene
+                    currentGaussianSplat = await SPLAT.PLYLoader.LoadAsync(
+                        frameFile, 
+                        scene, 
+                        onProgress,
+                        "", // format (empty = default)
+                        false // useCache
+                    );
                     
                     // Cache for faster switching (limit cache size)
                     if (frameCache.size < 20) {
                         frameCache.set(frameNumber, currentGaussianSplat);
                     }
-                    
-                    scene.add(currentGaussianSplat);
                 }
 
                 // Update UI
