@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4DVV AR - .splat Gaussian Splatting</title>
+    <title>4DVV AR - Single .splat Test</title>
     
     <style>
         * {
@@ -65,24 +65,17 @@
             max-width: 90vw;
         }
 
-        .main-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
         .control-btn {
             background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
             color: white;
-            padding: 8px 12px;
+            padding: 12px 20px;
             border-radius: 15px;
-            font-size: 12px;
+            font-size: 14px;
             cursor: pointer;
             transition: all 0.3s ease;
             white-space: nowrap;
+            min-width: 140px;
         }
 
         .control-btn:hover, .control-btn.active {
@@ -105,43 +98,13 @@
             font-weight: bold;
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+            min-width: 140px;
         }
 
         .ar-button:disabled {
             background: rgba(255, 255, 255, 0.2);
             box-shadow: none;
             cursor: not-allowed;
-        }
-
-        .timeline-container {
-            width: 100%;
-            max-width: 350px;
-        }
-
-        .timeline {
-            width: 100%;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-            cursor: pointer;
-            position: relative;
-            margin-bottom: 8px;
-        }
-
-        .timeline-progress {
-            height: 100%;
-            background: linear-gradient(90deg, #4CAF50, #45a049);
-            border-radius: 4px;
-            width: 0%;
-            transition: width 0.1s ease;
-        }
-
-        .frame-info {
-            font-size: 11px;
-            opacity: 0.8;
-            text-align: center;
-            display: flex;
-            justify-content: space-between;
         }
 
         .status {
@@ -200,52 +163,28 @@
             100% { transform: rotate(360deg); }
         }
 
-        .setup-info {
+        .debug-info {
             background: rgba(138, 43, 226, 0.2);
             border: 1px solid rgba(138, 43, 226, 0.5);
             border-radius: 15px;
             padding: 15px;
             margin-top: 10px;
-            text-align: center;
-        }
-
-        .setup-info h4 {
-            color: #8A2BE2;
-            font-size: 12px;
-            margin-bottom: 8px;
-        }
-
-        .setup-info p {
-            font-size: 10px;
-            opacity: 0.8;
-            line-height: 1.4;
-        }
-
-        @media (max-width: 480px) {
-            .controls {
-                bottom: 10px;
-                padding: 10px;
-            }
-            
-            .main-controls {
-                gap: 6px;
-            }
-            
-            .control-btn {
-                padding: 6px 10px;
-                font-size: 11px;
-            }
+            text-align: left;
+            font-size: 11px;
+            font-family: monospace;
+            max-height: 150px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 4DVV AR - .splat Gaussian Splatting</h1>
-        <p>Real 4D Gaussian Splatting with .splat files at 25fps</p>
+        <h1>🎭 4DVV AR - Single .splat Test</h1>
+        <p>Testing frame_000001.splat loading with gsplat.js</p>
     </div>
 
     <div class="status" id="status">
-        Initializing gsplat.js • Native .splat Gaussian Splatting renderer
+        Initializing gsplat.js • Testing single .splat file
     </div>
 
     <div class="loading" id="loading">
@@ -256,55 +195,22 @@
     <canvas id="canvas3d"></canvas>
 
     <div class="controls">
-        <div class="main-controls">
-            <button class="control-btn" onclick="loadFirstFrame()" disabled id="loadBtn">📂 Load .splat</button>
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
-            <button class="control-btn" onclick="previousFrame()" disabled>⮪</button>
-            <button class="control-btn" onclick="nextFrame()" disabled>⮫</button>
-            <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
-        </div>
+        <button class="control-btn" onclick="loadSingleFrame()" disabled id="loadBtn">📂 Load frame_000001.splat</button>
+        <button class="ar-button" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
         
-        <div class="timeline-container">
-            <div class="timeline" onclick="seekFrame(event)">
-                <div class="timeline-progress" id="timelineProgress"></div>
-            </div>
-            
-            <div class="frame-info">
-                <span>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></span>
-                <span>Buffer: <span id="bufferStatus">0/5</span></span>
-            </div>
-        </div>
-
-        <div class="setup-info">
-            <h4>📋 .splat Animation Setup</h4>
-            <p>
-                ✅ Native .splat file support with buffering<br>
-                ✅ 25fps animation with pre-loading<br>
-                ✅ WebXR AR with 4D Gaussian Splats
-            </p>
+        <div class="debug-info" id="debugInfo">
+            <div>Debug Console:</div>
+            <div id="debugLog"></div>
         </div>
     </div>
 
-    <!-- Load gsplat.js from CDN -->
     <script type="module">
         // Global variables
         let SPLAT;
         let scene, camera, renderer, controls;
-        let currentFrame = 1;
-        let totalFrames = 400;
-        let isPlaying = false;
-        let animationId = null;
+        let currentSplatObject = null;
         let arSession = null;
         
-        // Frame buffering system
-        let frameBuffer = new Map(); // Cache for loaded frames
-        let bufferSize = 5; // Number of frames to buffer ahead
-        let loadingFrames = new Set(); // Track frames currently loading
-        let currentSplatObject = null;
-        
-        // Base URL for .splat files
-        const baseURL = 'https://lumigrade.github.io/LumiAR/data/';
-
         // UI elements
         const canvas = document.getElementById('canvas3d');
         const loading = document.getElementById('loading');
@@ -312,31 +218,37 @@
         const status = document.getElementById('status');
         const arButton = document.getElementById('arButton');
         const loadBtn = document.getElementById('loadBtn');
-        const playBtn = document.getElementById('playBtn');
-        const currentFrameSpan = document.getElementById('currentFrame');
-        const totalFramesSpan = document.getElementById('totalFrames');
-        const bufferStatusSpan = document.getElementById('bufferStatus');
-        const timelineProgress = document.getElementById('timelineProgress');
+        const debugLog = document.getElementById('debugLog');
 
-        // Device detection
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        const isAndroid = /Android/.test(navigator.userAgent);
+        // Debug logging
+        function debugPrint(message) {
+            console.log(message);
+            debugLog.innerHTML += `<div>${message}</div>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
+        }
 
         // Load gsplat.js library
         async function loadGsplatLibrary() {
             try {
                 updateLoadingText('Loading gsplat.js library...');
-                SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/index.js');
-                return true;
-            } catch (error) {
-                console.warn('CDN import failed, trying alternative...', error);
+                debugPrint('🔄 Loading gsplat.js...');
+                
+                // Try different versions and CDNs
                 try {
-                    SPLAT = await import('https://unpkg.com/gsplat@1.2.0/dist/index.js');
-                    return true;
-                } catch (error2) {
-                    console.error('All gsplat.js imports failed:', error2);
-                    throw new Error(`Failed to load gsplat.js: ${error2.message}`);
+                    SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
+                    debugPrint('✅ Loaded from jsdelivr');
+                } catch (e1) {
+                    debugPrint('❌ jsdelivr failed, trying unpkg...');
+                    SPLAT = await import('https://unpkg.com/gsplat@latest/dist/index.js');
+                    debugPrint('✅ Loaded from unpkg');
                 }
+                
+                debugPrint(`📚 Available methods: ${Object.keys(SPLAT).join(', ')}`);
+                return true;
+                
+            } catch (error) {
+                debugPrint(`❌ Failed to load gsplat.js: ${error.message}`);
+                throw error;
             }
         }
 
@@ -344,31 +256,37 @@
         async function initGsplat() {
             try {
                 updateLoadingText('Initializing gsplat.js renderer...');
+                debugPrint('🔄 Initializing scene...');
                 
-                // Create gsplat.js components with proper API
+                // Create components
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 renderer = new SPLAT.WebGLRenderer(canvas);
                 controls = new SPLAT.OrbitControls(camera, canvas);
                 
-                // Set up camera and renderer
-                renderer.setSize(window.innerWidth, window.innerHeight);
+                debugPrint('✅ Scene components created');
                 
-                // WebXR check with better error handling
+                // Set up renderer
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                debugPrint('✅ Renderer configured');
+                
+                // WebXR check (optional)
                 initWebXR();
 
                 loading.classList.add('hidden');
-                updateStatus('gsplat.js initialized • Ready to load .splat Gaussian Splats', 'success');
+                updateStatus('gsplat.js initialized • Ready to test .splat loading', 'success');
+                debugPrint('🎉 Ready to load .splat file');
                 
-                // Enable controls
+                // Enable load button
                 loadBtn.disabled = false;
                 
                 startRenderLoop();
 
             } catch (error) {
-                console.error('gsplat.js initialization failed:', error);
+                debugPrint(`❌ Initialization failed: ${error.message}`);
                 updateStatus(`Initialization failed: ${error.message}`, 'error');
                 loading.classList.add('hidden');
+                throw error;
             }
         }
 
@@ -386,85 +304,101 @@
                 requestAnimationFrame(render);
             }
             render();
+            debugPrint('🔄 Render loop started');
         }
 
-        // WebXR initialization with safe error handling
+        // WebXR initialization (optional)
         function initWebXR() {
-            // Check if running on HTTPS or localhost
             const isSecureContext = window.isSecureContext || location.hostname === 'localhost';
             
             if (!isSecureContext) {
-                updateStatus('WebXR requires HTTPS - AR disabled');
+                debugPrint('⚠️ WebXR requires HTTPS');
                 return;
             }
             
             if (!navigator.xr) {
-                updateStatus('WebXR not available in this browser');
+                debugPrint('⚠️ WebXR not available');
                 return;
             }
             
-            // Safe WebXR check
             navigator.xr.isSessionSupported('immersive-ar')
                 .then(supported => {
                     if (supported) {
                         arButton.disabled = false;
-                        updateStatus('WebXR AR supported • gsplat.js + AR ready', 'success');
+                        debugPrint('✅ WebXR AR supported');
                     } else {
-                        updateStatus('WebXR AR not supported on this device');
+                        debugPrint('⚠️ WebXR AR not supported');
                     }
                 })
                 .catch(error => {
-                    console.warn('WebXR check failed:', error.message);
-                    updateStatus('WebXR check failed - AR disabled');
+                    debugPrint(`⚠️ WebXR check failed: ${error.message}`);
                 });
         }
 
-        // Generate .splat file URL
-        function getSplatURL(frameNumber) {
-            const frameStr = String(frameNumber).padStart(6, '0');
-            return `${baseURL}frame_${frameStr}.splat`;
-        }
-
-        // Load individual .splat frame
-        async function loadSplatFrame(frameNumber) {
-            if (frameBuffer.has(frameNumber)) {
-                return frameBuffer.get(frameNumber);
-            }
-            
-            if (loadingFrames.has(frameNumber)) {
-                // Already loading, wait for it
-                return new Promise((resolve) => {
-                    const checkLoaded = () => {
-                        if (frameBuffer.has(frameNumber)) {
-                            resolve(frameBuffer.get(frameNumber));
-                        } else {
-                            setTimeout(checkLoaded, 50);
-                        }
-                    };
-                    checkLoaded();
-                });
-            }
-            
-            loadingFrames.add(frameNumber);
+        // Load single .splat frame
+        async function loadSingleFrame() {
+            loading.classList.remove('hidden');
+            updateLoadingText('Loading frame_000001.splat...');
+            debugPrint('🔄 Starting .splat load...');
             
             try {
-                const url = getSplatURL(frameNumber);
-                updateLoadingText(`Loading frame ${frameNumber}...`);
+                const url = 'https://lumigrade.github.io/LumiAR/data/frame_000001.splat';
+                debugPrint(`📁 URL: ${url}`);
                 
-                console.log('Available SPLAT methods:', Object.keys(SPLAT));
+                // Clear previous object
+                if (currentSplatObject) {
+                    scene.removeObject(currentSplatObject);
+                    debugPrint('🗑️ Cleared previous object');
+                }
                 
-                // Try different loading approaches
-                let splatObject;
+                // Try different loading methods based on available API
+                let splatObject = null;
                 
-                // Method 1: Try direct URL loading
-                try {
-                    splatObject = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
-                        console.log(`Loading frame ${frameNumber}: ${(progress * 100).toFixed(1)}%`);
-                    });
-                } catch (e1) {
-                    console.warn('Method 1 failed:', e1.message);
-                    
-                    // Method 2: Try manual fetch + buffer loading
+                // Method 1: Try Loader.LoadAsync (most common)
+                if (SPLAT.Loader && SPLAT.Loader.LoadAsync) {
+                    debugPrint('🔄 Trying Loader.LoadAsync...');
+                    try {
+                        splatObject = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
+                            const percent = (progress * 100).toFixed(1);
+                            updateLoadingText(`Loading: ${percent}%`);
+                            debugPrint(`📊 Progress: ${percent}%`);
+                        });
+                        debugPrint('✅ Loader.LoadAsync succeeded');
+                    } catch (e) {
+                        debugPrint(`❌ Loader.LoadAsync failed: ${e.message}`);
+                    }
+                }
+                
+                // Method 2: Try SplatLoader (if available)
+                if (!splatObject && SPLAT.SplatLoader) {
+                    debugPrint('🔄 Trying SplatLoader...');
+                    try {
+                        if (SPLAT.SplatLoader.LoadAsync) {
+                            splatObject = await SPLAT.SplatLoader.LoadAsync(url, scene, camera, (progress) => {
+                                const percent = (progress * 100).toFixed(1);
+                                updateLoadingText(`Loading: ${percent}%`);
+                                debugPrint(`📊 Progress: ${percent}%`);
+                            });
+                        } else if (SPLAT.SplatLoader.LoadFromFileAsync) {
+                            // Fetch and convert to File object
+                            const response = await fetch(url);
+                            const blob = await response.blob();
+                            const file = new File([blob], 'frame_000001.splat');
+                            splatObject = await SPLAT.SplatLoader.LoadFromFileAsync(file, scene, camera, (progress) => {
+                                const percent = (progress * 100).toFixed(1);
+                                updateLoadingText(`Loading: ${percent}%`);
+                                debugPrint(`📊 Progress: ${percent}%`);
+                            });
+                        }
+                        debugPrint('✅ SplatLoader succeeded');
+                    } catch (e) {
+                        debugPrint(`❌ SplatLoader failed: ${e.message}`);
+                    }
+                }
+                
+                // Method 3: Manual fetch + buffer loading
+                if (!splatObject) {
+                    debugPrint('🔄 Trying manual fetch...');
                     try {
                         const response = await fetch(url);
                         if (!response.ok) {
@@ -472,195 +406,47 @@
                         }
                         
                         const data = await response.arrayBuffer();
-                        console.log(`Fetched ${data.byteLength} bytes for frame ${frameNumber}`);
+                        debugPrint(`📦 Fetched ${data.byteLength} bytes`);
                         
-                        // Try various buffer loading methods
-                        if (SPLAT.Loader.LoadFromBuffer) {
+                        // Try buffer loading methods
+                        if (SPLAT.Loader && SPLAT.Loader.LoadFromBuffer) {
                             splatObject = SPLAT.Loader.LoadFromBuffer(data, scene);
-                        } else if (SPLAT.SplatLoader) {
-                            splatObject = await SPLAT.SplatLoader.LoadFromBufferAsync(data, scene);
+                            debugPrint('✅ LoadFromBuffer succeeded');
                         } else {
-                            throw new Error('No suitable loading method found');
+                            throw new Error('No buffer loading method available');
                         }
-                        
-                    } catch (e2) {
-                        console.error('Method 2 failed:', e2.message);
-                        throw new Error(`All loading methods failed. Last error: ${e2.message}`);
+                    } catch (e) {
+                        debugPrint(`❌ Manual fetch failed: ${e.message}`);
                     }
                 }
                 
-                // Cache the loaded object
-                frameBuffer.set(frameNumber, splatObject);
-                
-                // Clean up old frames if buffer is too large
-                if (frameBuffer.size > bufferSize * 3) {
-                    const oldestFrames = Array.from(frameBuffer.keys())
-                        .filter(f => Math.abs(f - currentFrame) > bufferSize * 2)
-                        .slice(0, bufferSize);
+                if (splatObject) {
+                    currentSplatObject = splatObject;
                     
-                    oldestFrames.forEach(f => frameBuffer.delete(f));
+                    // Position camera to view the splat
+                    if (controls && controls.setCameraTarget) {
+                        controls.setCameraTarget(camera.position.add(camera.forward.multiply(5)));
+                    }
+                    
+                    loading.classList.add('hidden');
+                    updateStatus('✅ .splat loaded successfully! Try AR now.', 'success');
+                    debugPrint('🎉 .splat loaded and displayed!');
+                    
+                    // Enable AR if available
+                    if (!arButton.disabled) {
+                        debugPrint('🚀 AR button enabled');
+                    }
+                    
+                } else {
+                    throw new Error('All loading methods failed - no suitable API found');
                 }
-                
-                updateBufferStatus();
-                return splatObject;
-                
-            } catch (error) {
-                console.error(`Failed to load frame ${frameNumber}:`, error);
-                throw error;
-            } finally {
-                loadingFrames.delete(frameNumber);
-            }
-        }
-
-        // Pre-buffer frames around current frame
-        async function prebufferFrames(centerFrame) {
-            const framesToBuffer = [];
-            
-            for (let i = 0; i < bufferSize; i++) {
-                const nextFrame = centerFrame + i;
-                if (nextFrame <= totalFrames && !frameBuffer.has(nextFrame) && !loadingFrames.has(nextFrame)) {
-                    framesToBuffer.push(nextFrame);
-                }
-            }
-            
-            // Load frames in background
-            framesToBuffer.forEach(async (frameNum) => {
-                try {
-                    await loadSplatFrame(frameNum);
-                } catch (error) {
-                    console.warn(`Background loading failed for frame ${frameNum}:`, error);
-                }
-            });
-        }
-
-        // Display specific frame
-        async function displayFrame(frameNumber) {
-            try {
-                // Clear current object from scene
-                if (currentSplatObject) {
-                    scene.removeObject(currentSplatObject);
-                }
-                
-                // Load and display new frame
-                currentSplatObject = await loadSplatFrame(frameNumber);
-                scene.addObject(currentSplatObject);
-                
-                currentFrame = frameNumber;
-                updateFrameDisplay();
-                
-                // Pre-buffer upcoming frames
-                prebufferFrames(frameNumber + 1);
-                
-                return true;
-                
-            } catch (error) {
-                console.error(`Failed to display frame ${frameNumber}:`, error);
-                updateStatus(`Frame ${frameNumber} load failed: ${error.message}`, 'error');
-                return false;
-            }
-        }
-
-        // Load first frame
-        async function loadFirstFrame() {
-            loading.classList.remove('hidden');
-            updateLoadingText('Loading first .splat frame...');
-            
-            try {
-                await displayFrame(1);
-                
-                // Enable animation controls
-                document.querySelectorAll('.control-btn').forEach(btn => btn.disabled = false);
-                if (navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')) {
-                    arButton.disabled = false;
-                }
-                
-                loading.classList.add('hidden');
-                updateStatus('✅ .splat frame loaded • Ready for AR and animation', 'success');
                 
             } catch (error) {
                 loading.classList.add('hidden');
                 updateStatus(`❌ Loading failed: ${error.message}`, 'error');
+                debugPrint(`💥 FAILED: ${error.message}`);
                 console.error('.splat loading error:', error);
             }
-        }
-
-        // Animation controls
-        function togglePlayback() {
-            isPlaying = !isPlaying;
-            playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
-            
-            if (isPlaying) {
-                startAnimation();
-            } else {
-                stopAnimation();
-            }
-        }
-
-        function startAnimation() {
-            if (animationId) cancelAnimationFrame(animationId);
-            
-            let lastTime = 0;
-            const frameRate = 25; // 25fps
-            const frameInterval = 1000 / frameRate;
-            
-            function animate(currentTime) {
-                if (currentTime - lastTime >= frameInterval) {
-                    nextFrame();
-                    lastTime = currentTime;
-                }
-                
-                if (isPlaying) {
-                    animationId = requestAnimationFrame(animate);
-                }
-            }
-            
-            animationId = requestAnimationFrame(animate);
-        }
-
-        function stopAnimation() {
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
-            }
-        }
-
-        async function nextFrame() {
-            const nextFrameNum = (currentFrame % totalFrames) + 1;
-            try {
-                await displayFrame(nextFrameNum);
-            } catch (error) {
-                console.error('Animation frame error:', error);
-                stopAnimation();
-            }
-        }
-
-        async function previousFrame() {
-            const prevFrameNum = currentFrame > 1 ? currentFrame - 1 : totalFrames;
-            try {
-                await displayFrame(prevFrameNum);
-            } catch (error) {
-                console.error('Frame navigation error:', error);
-            }
-        }
-
-        async function seekFrame(event) {
-            const rect = event.currentTarget.getBoundingClientRect();
-            const position = (event.clientX - rect.left) / rect.width;
-            const targetFrame = Math.max(1, Math.round(position * totalFrames));
-            await displayFrame(targetFrame);
-        }
-
-        function updateFrameDisplay() {
-            currentFrameSpan.textContent = currentFrame;
-            totalFramesSpan.textContent = totalFrames;
-            
-            const progress = ((currentFrame - 1) / (totalFrames - 1)) * 100;
-            timelineProgress.style.width = `${Math.max(0, progress)}%`;
-        }
-
-        function updateBufferStatus() {
-            const bufferedCount = frameBuffer.size;
-            bufferStatusSpan.textContent = `${bufferedCount}/${bufferSize * 2}`;
         }
 
         // WebXR AR functionality
@@ -672,25 +458,29 @@
 
             try {
                 loading.classList.remove('hidden');
-                updateLoadingText('Starting AR with .splat Gaussian Splatting...');
+                updateLoadingText('Starting AR session...');
+                debugPrint('🔄 Starting AR...');
 
                 arSession = await navigator.xr.requestSession('immersive-ar', {
                     requiredFeatures: ['local', 'hit-test']
                 });
 
                 await renderer.setXRSession(arSession);
+                debugPrint('✅ AR session started');
                 
                 arSession.addEventListener('end', () => {
                     arSession = null;
+                    debugPrint('🛑 AR session ended');
                     updateStatus('AR session ended', 'success');
                 });
 
                 loading.classList.add('hidden');
-                updateStatus('🚀 AR Session Active • 4D .splat Gaussian Splatting in AR!', 'success');
+                updateStatus('🚀 AR Session Active! Look around to see your .splat in AR', 'success');
 
             } catch (error) {
                 loading.classList.add('hidden');
                 updateStatus(`AR failed: ${error.message}`, 'error');
+                debugPrint(`💥 AR FAILED: ${error.message}`);
                 console.error('AR startup failed:', error);
             }
         }
@@ -705,7 +495,7 @@
                     if (status.classList.contains('success')) {
                         status.className = 'status';
                     }
-                }, 3000);
+                }, 5000);
             }
         }
 
@@ -719,36 +509,21 @@
                 if (renderer) {
                     renderer.setSize(window.innerWidth, window.innerHeight);
                 }
-                // Note: camera.data.setSize might not exist in all versions
-                if (camera && camera.data && camera.data.setSize) {
-                    camera.data.setSize(window.innerWidth, window.innerHeight);
-                }
             } catch (error) {
                 console.warn('Resize error:', error);
             }
         });
 
-        // Global function exposure for onclick handlers
-        window.loadFirstFrame = loadFirstFrame;
-        window.togglePlayback = togglePlayback;
-        window.nextFrame = nextFrame;
-        window.previousFrame = previousFrame;
-        window.seekFrame = seekFrame;
+        // Global function exposure
+        window.loadSingleFrame = loadSingleFrame;
         window.startAR = startAR;
 
         // Initialize when page loads
         window.addEventListener('load', () => {
-            updateStatus(`Device: ${isIOS ? 'iPhone' : isAndroid ? 'Android' : 'Desktop'} • Loading gsplat.js...`);
+            updateStatus('Loading gsplat.js library...');
             setTimeout(async () => {
                 try {
-                    // Load gsplat.js library first
                     await loadGsplatLibrary();
-                    
-                    // Debug: Show available SPLAT methods
-                    console.log('SPLAT object:', SPLAT);
-                    console.log('Available SPLAT methods:', Object.keys(SPLAT));
-                    
-                    // Initialize the scene
                     await initGsplat();
                 } catch (error) {
                     console.error('Initialization error:', error);
@@ -757,8 +532,6 @@
                 }
             }, 500);
         });
-
     </script>
-
 </body>
 </html>
