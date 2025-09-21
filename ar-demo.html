@@ -213,7 +213,6 @@
         <button class="control-btn" onclick="document.getElementById('fileInput').click()">📁 Load .splat Files</button>
         <button class="control-btn" onclick="testWorkingSplat()">🌸 Test Working Flower</button>
         <button class="control-btn" onclick="testOurSplat()">🎭 Test Our Frame</button>
-        <button class="control-btn" onclick="createTestSplat()">🧪 Create Test .splat</button>
         <button class="control-btn" onclick="clearAnalysis()">🗑️ Clear</button>
     </div>
 
@@ -354,7 +353,7 @@
                     debugLog(`📐 Row size ${rowSize}: ${count} gaussians, ${remainder} bytes remainder (${remainder === 0 ? 'EXACT' : 'NOT EXACT'})`, remainder === 0 ? 'success' : 'warning');
                 });
                 
-                // Try to load with gsplat.js and catch detailed Three.js errors
+                // Try to load with gsplat.js to see what happens
                 try {
                     debugLog(`🧪 Testing gsplat.js loading...`, 'info');
                     
@@ -365,69 +364,25 @@
                     // Clear scene
                     scene.objects.forEach(obj => scene.removeObject(obj));
                     
-                    // Hook into Three.js DataView/BufferReader operations to catch offset errors
-                    const originalDataView = window.DataView;
-                    let bufferOperations = [];
-                    
-                    function HookedDataView(buffer, byteOffset, byteLength) {
-                        const operation = {
-                            bufferSize: buffer.byteLength,
-                            requestedOffset: byteOffset || 0,
-                            requestedLength: byteLength || buffer.byteLength,
-                            timestamp: Date.now()
-                        };
-                        bufferOperations.push(operation);
-                        
-                        debugLog(`📊 DataView: buffer=${buffer.byteLength}b, offset=${operation.requestedOffset}, length=${operation.requestedLength}`, 'info');
-                        
-                        return new originalDataView(buffer, byteOffset, byteLength);
-                    }
-                    
-                    // Copy all DataView methods
-                    Object.setPrototypeOf(HookedDataView.prototype, originalDataView.prototype);
-                    Object.setPrototypeOf(HookedDataView, originalDataView);
-                    
-                    // Replace global DataView temporarily
-                    window.DataView = HookedDataView;
-                    
                     const progressCallback = (progress) => {
                         debugLog(`📊 Loading progress: ${(progress * 100).toFixed(1)}%`, 'info');
                     };
                     
-                    try {
-                        const splatObject = await SPLAT.Loader.LoadAsync(url, scene, progressCallback);
-                        
-                        if (splatObject) {
-                            const actualCount = splatObject.data ? splatObject.data.vertexCount : 'unknown';
-                            debugLog(`✅ gsplat.js loaded successfully! Actual gaussian count: ${actualCount}`, 'success');
-                            analysis.gsplatSuccess = true;
-                            analysis.actualGaussianCount = actualCount;
-                        }
-                    } finally {
-                        // Restore original DataView
-                        window.DataView = originalDataView;
-                    }
+                    const splatObject = await SPLAT.Loader.LoadAsync(url, scene, progressCallback);
                     
-                    analysis.bufferOperations = bufferOperations;
-                    debugLog(`📋 Recorded ${bufferOperations.length} buffer operations`, 'info');
+                    if (splatObject) {
+                        const actualCount = splatObject.data ? splatObject.data.vertexCount : 'unknown';
+                        debugLog(`✅ gsplat.js loaded successfully! Actual gaussian count: ${actualCount}`, 'success');
+                        analysis.gsplatSuccess = true;
+                        analysis.actualGaussianCount = actualCount;
+                    }
                     
                     URL.revokeObjectURL(url);
                     
                 } catch (gsplatError) {
                     debugLog(`❌ gsplat.js loading failed: ${gsplatError.message}`, 'error');
-                    debugLog(`❌ Error stack: ${gsplatError.stack}`, 'error');
-                    
-                    // Analyze the specific error
-                    if (gsplatError.message.includes('offset') || gsplatError.message.includes('bounds')) {
-                        debugLog(`🔍 THREE.JS BUFFER ERROR DETECTED:`, 'error');
-                        debugLog(`   - This is a Three.js DataView/Buffer reading issue`, 'error');
-                        debugLog(`   - File size: ${fileSize} bytes`, 'error');
-                        debugLog(`   - Error suggests loader expects different data layout`, 'error');
-                    }
-                    
                     analysis.gsplatSuccess = false;
                     analysis.gsplatError = gsplatError.message;
-                    analysis.errorStack = gsplatError.stack;
                 }
                 
                 return analysis;
@@ -452,22 +407,6 @@
                 html += `<div class="status-line success">✅ gsplat.js: SUCCESS (${analysis.actualGaussianCount} gaussians)</div>`;
             } else {
                 html += `<div class="status-line error">❌ gsplat.js: FAILED - ${analysis.gsplatError}</div>`;
-                if (analysis.errorStack) {
-                    html += `<div class="status-line error">Stack: ${analysis.errorStack.split('\n')[1] || 'N/A'}</div>`;
-                }
-            }
-            
-            // Buffer operations analysis
-            if (analysis.bufferOperations && analysis.bufferOperations.length > 0) {
-                html += `<div style="margin: 8px 0; font-weight: bold;">Buffer Operations (${analysis.bufferOperations.length}):</div>`;
-                html += `<div class="hex-dump">`;
-                analysis.bufferOperations.forEach((op, i) => {
-                    const endOffset = op.requestedOffset + op.requestedLength;
-                    const isValid = endOffset <= op.bufferSize;
-                    const status = isValid ? '✅' : '❌ OVERFLOW';
-                    html += `[${i}] ${status} offset=${op.requestedOffset}, length=${op.requestedLength}, end=${endOffset}, bufferSize=${op.bufferSize}<br>`;
-                });
-                html += `</div>`;
             }
             
             html += `<div style="margin: 8px 0; font-weight: bold;">Possible Row Sizes:</div>`;
@@ -539,94 +478,6 @@
             }
             
             document.getElementById('loading').classList.add('hidden');
-        }
-
-        // Create test .splat files
-        async function createTestSplat() {
-            debugLog(`🧪 Creating test .splat files with different row sizes...`, 'info');
-            
-            const testRowSizes = [32, 40, 44, 48, 52];
-            const numTestGaussians = 100;
-            
-            for (const rowSize of testRowSizes) {
-                try {
-                    const buffer = createMinimalSplat(numTestGaussians, rowSize);
-                    const fileName = `test_${rowSize}bytes_${numTestGaussians}gaussians.splat`;
-                    
-                    debugLog(`🔧 Testing ${fileName} (${buffer.byteLength} bytes)...`, 'info');
-                    
-                    // Create a fake file object for analysis
-                    const fakeFile = {
-                        name: fileName,
-                        size: buffer.byteLength,
-                        arrayBuffer: () => Promise.resolve(buffer)
-                    };
-                    
-                    const analysis = await analyzeSplatFile(fakeFile, false);
-                    displayAnalysis(analysis);
-                    
-                } catch (error) {
-                    debugLog(`❌ Test .splat creation failed for ${rowSize} bytes: ${error.message}`, 'error');
-                }
-            }
-        }
-
-        function createMinimalSplat(count, rowSize) {
-            debugLog(`🛠️ Creating minimal .splat: ${count} gaussians, ${rowSize} bytes per row`, 'info');
-            
-            const buffer = new ArrayBuffer(count * rowSize);
-            const view = new DataView(buffer);
-            const floatView = new Float32Array(buffer);
-            const uint8View = new Uint8Array(buffer);
-            
-            for (let i = 0; i < count; i++) {
-                const offset = i * rowSize;
-                
-                // Position (3 floats = 12 bytes) - create a simple grid
-                const x = (i % 10) - 5;
-                const y = Math.floor(i / 100);
-                const z = Math.floor((i % 100) / 10) - 5;
-                
-                view.setFloat32(offset + 0, x, true);      // x
-                view.setFloat32(offset + 4, y, true);      // y  
-                view.setFloat32(offset + 8, z, true);      // z
-                
-                // Scale (3 floats = 12 bytes)
-                view.setFloat32(offset + 12, 0.1, true);   // scale_x
-                view.setFloat32(offset + 16, 0.1, true);   // scale_y
-                view.setFloat32(offset + 20, 0.1, true);   // scale_z
-                
-                // Color RGBA (4 bytes)
-                uint8View[offset + 24] = 255;              // red
-                uint8View[offset + 25] = 128;              // green
-                uint8View[offset + 26] = 64;               // blue
-                uint8View[offset + 27] = 255;              // alpha
-                
-                if (rowSize >= 32) {
-                    // Rotation quaternion - depends on rowSize
-                    if (rowSize === 32) {
-                        // 4 bytes encoded quaternion
-                        uint8View[offset + 28] = 128 + 127;    // w encoded
-                        uint8View[offset + 29] = 128;          // x encoded
-                        uint8View[offset + 30] = 128;          // y encoded  
-                        uint8View[offset + 31] = 128;          // z encoded
-                    } else {
-                        // Full float quaternion (16 bytes)
-                        view.setFloat32(offset + 28, 1.0, true);   // w
-                        view.setFloat32(offset + 32, 0.0, true);   // x
-                        view.setFloat32(offset + 36, 0.0, true);   // y
-                        view.setFloat32(offset + 40, 0.0, true);   // z
-                        
-                        // Fill remaining bytes with zeros for larger row sizes
-                        for (let j = 44; j < rowSize; j++) {
-                            uint8View[offset + j] = 0;
-                        }
-                    }
-                }
-            }
-            
-            debugLog(`✅ Created test buffer: ${buffer.byteLength} bytes`, 'success');
-            return buffer;
         }
 
         function clearAnalysis() {
@@ -720,7 +571,6 @@
         window.showDebugTab = showDebugTab;
         window.testWorkingSplat = testWorkingSplat;
         window.testOurSplat = testOurSplat;
-        window.createTestSplat = createTestSplat;
         window.clearAnalysis = clearAnalysis;
 
         // Initialize
