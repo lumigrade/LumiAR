@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4D Gaussian Splatting AR Demo V8 - Working PLY Parser</title>
+    <title>Simple PLY Upload Test V9</title>
     <style>
         * {
             margin: 0;
@@ -12,7 +12,7 @@
         }
         
         body {
-            background: #000;
+            background: #111;
             color: white;
             font-family: Arial, sans-serif;
             overflow: hidden;
@@ -30,11 +30,9 @@
             left: 10px;
             z-index: 1000;
             background: rgba(0,0,0,0.8);
-            padding: 15px;
+            padding: 20px;
             border-radius: 8px;
-            font-size: 12px;
-            backdrop-filter: blur(10px);
-            max-width: 300px;
+            font-size: 14px;
         }
         
         #controls {
@@ -47,20 +45,18 @@
             padding: 15px;
             border-radius: 8px;
             display: flex;
-            gap: 10px;
+            gap: 15px;
             align-items: center;
-            backdrop-filter: blur(10px);
-            flex-wrap: wrap;
         }
         
         button {
             background: #007acc;
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 10px 20px;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 11px;
+            font-size: 12px;
         }
         
         button:hover {
@@ -72,48 +68,25 @@
             cursor: not-allowed;
         }
         
-        #progress {
-            width: 120px;
-            height: 5px;
+        input[type="file"] {
+            color: white;
             background: #333;
-            border-radius: 3px;
-            overflow: hidden;
-            margin: 0 5px;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
         }
         
-        #progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ff88, #0088ff);
-            width: 0%;
-            transition: width 0.1s;
-        }
-        
-        #loading {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2000;
-            background: rgba(0,0,0,0.9);
-            padding: 30px;
-            border-radius: 10px;
+        .upload-area {
+            border: 2px dashed #666;
+            padding: 20px;
             text-align: center;
-            display: none;
+            border-radius: 8px;
+            margin: 10px 0;
         }
         
-        .spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid #333;
-            border-top: 3px solid #00ff88;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .upload-area.dragover {
+            border-color: #007acc;
+            background: rgba(0, 122, 204, 0.1);
         }
         
         .status {
@@ -123,117 +96,101 @@
         .error {
             color: #ff4444;
         }
-        
-        .info {
-            font-size: 11px;
-            color: #aaa;
-            margin-top: 5px;
-        }
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
     
-    <div id="loading">
-        <div class="spinner"></div>
-        <div id="load-text">Loading PLY files...</div>
-        <div id="load-progress">0/50</div>
-    </div>
-    
     <div id="ui">
-        <div><strong>Gaussian Splatting V8</strong></div>
-        <div>Status: <span id="status" class="status">Loading...</span></div>
-        <div>Frames: <span id="frame-count">0</span>/50</div>
+        <h3>Simple PLY Test V9</h3>
+        <div>Status: <span id="status" class="status">Ready</span></div>
+        <div>Files: <span id="file-count">0</span></div>
         <div>Points: <span id="point-count">0</span></div>
-        <div>Current: <span id="current-frame">0</span></div>
-        <div>Time: <span id="time-display">00:00/16:00</span></div>
-        <div class="info">Proper PLY Gaussian parsing</div>
-        <div class="info">Based on gsplat.js PLYLoader</div>
+        
+        <div class="upload-area" id="upload-area">
+            <div>Drop PLY files here or</div>
+            <input type="file" id="file-input" accept=".ply" multiple>
+        </div>
     </div>
     
     <div id="controls">
-        <button id="load-btn" disabled>Load PLY Sequence</button>
         <button id="play-btn" disabled>Play</button>
         <button id="pause-btn" disabled>Pause</button>
         <button id="reset-btn" disabled>Reset</button>
-        <div id="progress">
-            <div id="progress-fill"></div>
-        </div>
-        <span>25fps</span>
+        <span id="frame-display">Frame: 0/0</span>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/controls/OrbitControls.js"></script>
     
     <script>
-        console.log('Starting Gaussian Splatting Demo V8');
-        console.log('Three.js version:', THREE.REVISION);
+        console.log('Starting Simple PLY Test V9');
         
-        class GaussianSplattingDemo {
+        class SimplePLYTest {
             constructor() {
-                // Scene setup
+                // Basic Three.js setup
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
                 this.renderer = new THREE.WebGLRenderer({ 
                     canvas: document.getElementById('canvas'),
-                    antialias: true,
-                    alpha: true
+                    antialias: true
                 });
                 
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.camera.position.set(0, 0, 5);
                 
-                // Controls
                 this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
-                this.camera.position.set(0, 1, 3);
                 
-                // Lighting
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                // Add some lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+                directionalLight.position.set(1, 1, 1);
+                this.scene.add(directionalLight);
                 
                 // Data
                 this.frames = [];
-                this.currentTime = 0;
-                this.totalTime = 16.0;
-                this.fps = 25;
+                this.currentFrame = 0;
                 this.isPlaying = false;
-                this.isLoading = false;
-                
-                // GitHub data
-                this.baseUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/';
-                
-                // Spherical harmonics constant (from gsplat.js)
-                this.SH_C0 = 0.28209479177387814;
+                this.playSpeed = 1000 / 25; // 25fps
                 
                 this.setupUI();
                 this.startRenderLoop();
                 
-                this.setStatus('Ready - Click Load PLY Sequence');
-                this.enableButton('load-btn');
-                
-                console.log('Demo initialized successfully');
+                console.log('Simple PLY Test initialized');
             }
             
             setupUI() {
-                document.getElementById('load-btn').onclick = () => {
-                    console.log('Load button clicked');
-                    this.loadSequence();
-                };
+                const fileInput = document.getElementById('file-input');
+                const uploadArea = document.getElementById('upload-area');
                 
-                document.getElementById('play-btn').onclick = () => {
-                    console.log('Play button clicked');
-                    this.play();
-                };
+                // File input change
+                fileInput.addEventListener('change', (e) => {
+                    console.log('Files selected:', e.target.files.length);
+                    this.loadFiles(e.target.files);
+                });
                 
-                document.getElementById('pause-btn').onclick = () => {
-                    console.log('Pause button clicked');
-                    this.pause();
-                };
+                // Drag and drop
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
                 
-                document.getElementById('reset-btn').onclick = () => {
-                    console.log('Reset button clicked');
-                    this.reset();
-                };
+                uploadArea.addEventListener('dragleave', (e) => {
+                    uploadArea.classList.remove('dragover');
+                });
+                
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    console.log('Files dropped:', e.dataTransfer.files.length);
+                    this.loadFiles(e.dataTransfer.files);
+                });
+                
+                // Controls
+                document.getElementById('play-btn').onclick = () => this.play();
+                document.getElementById('pause-btn').onclick = () => this.pause();
+                document.getElementById('reset-btn').onclick = () => this.reset();
                 
                 window.addEventListener('resize', () => {
                     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -242,377 +199,257 @@
                 });
             }
             
-            async loadSequence() {
-                if (this.isLoading) return;
-                
-                this.isLoading = true;
-                this.showLoading();
-                this.setStatus('Loading PLY sequence from GitHub...');
-                this.disableButton('load-btn');
-                
-                console.log('Starting to load PLY sequence...');
+            async loadFiles(files) {
+                console.log('Loading files...');
+                this.setStatus('Loading PLY files...');
                 
                 try {
-                    this.frames = [];
-                    const maxFrames = 50; // Load first 50 frames for demo
-                    let loadedCount = 0;
+                    // Filter PLY files and sort by name
+                    const plyFiles = Array.from(files)
+                        .filter(file => file.name.toLowerCase().endsWith('.ply'))
+                        .sort((a, b) => a.name.localeCompare(b.name));
                     
-                    for (let i = 1; i <= maxFrames; i++) {
-                        const frameNum = i.toString().padStart(6, '0');
-                        const url = `${this.baseUrl}compressed_frame_${frameNum}.ply`;
-                        
-                        document.getElementById('load-progress').textContent = `${i}/${maxFrames}`;
-                        document.getElementById('load-text').textContent = `Loading frame ${i}...`;
+                    console.log(`Found ${plyFiles.length} PLY files`);
+                    document.getElementById('file-count').textContent = plyFiles.length;
+                    
+                    if (plyFiles.length === 0) {
+                        throw new Error('No PLY files selected');
+                    }
+                    
+                    this.frames = [];
+                    
+                    // Load each PLY file
+                    for (let i = 0; i < plyFiles.length; i++) {
+                        const file = plyFiles[i];
+                        console.log(`Loading ${file.name}...`);
                         
                         try {
-                            console.log(`Loading frame ${i}: ${url}`);
+                            const arrayBuffer = await this.readFileAsArrayBuffer(file);
+                            const points = this.parsePLY(arrayBuffer);
                             
-                            const response = await fetch(url);
-                            if (!response.ok) {
-                                if (i === 1) {
-                                    throw new Error(`Cannot access data: ${response.status} - Check GitHub URL`);
-                                }
-                                console.log(`Stopped at frame ${i}: ${response.status}`);
-                                break;
-                            }
-                            
-                            const arrayBuffer = await response.arrayBuffer();
-                            
-                            // Parse PLY using gsplat.js method
-                            const gaussians = await this.parsePLYGaussians(arrayBuffer);
-                            
-                            if (gaussians && gaussians.length > 0) {
+                            if (points && points.length > 0) {
                                 this.frames.push({
-                                    index: i - 1,
-                                    timestamp: (i - 1) / (maxFrames - 1) * this.totalTime,
-                                    gaussians: gaussians
+                                    name: file.name,
+                                    points: points
                                 });
-                                loadedCount++;
-                                
-                                // Show first frame
-                                if (i === 1) {
-                                    this.showFrame(0);
-                                }
-                                
-                                console.log(`Frame ${i} loaded: ${gaussians.length} gaussians`);
+                                console.log(`Loaded ${file.name}: ${points.length} points`);
+                            } else {
+                                console.warn(`No points found in ${file.name}`);
                             }
-                            
-                            // Update UI
-                            if (i % 5 === 0) {
-                                document.getElementById('frame-count').textContent = loadedCount;
-                                await new Promise(resolve => setTimeout(resolve, 1));
-                            }
-                            
                         } catch (error) {
-                            if (i === 1) throw error;
-                            console.log(`Frame ${i} failed: ${error.message}`);
-                            break;
+                            console.error(`Error loading ${file.name}:`, error);
                         }
                     }
                     
                     if (this.frames.length === 0) {
-                        throw new Error('No frames loaded');
+                        throw new Error('No valid PLY frames loaded');
                     }
                     
                     console.log(`Successfully loaded ${this.frames.length} frames`);
+                    this.setStatus(`Loaded ${this.frames.length} PLY files`);
+                    document.getElementById('file-count').textContent = this.frames.length;
                     
-                    document.getElementById('frame-count').textContent = this.frames.length;
-                    this.setStatus(`Loaded ${this.frames.length} PLY frames - Ready!`);
+                    // Show first frame
+                    this.showFrame(0);
                     
                     // Enable controls
-                    this.enableButton('play-btn');
-                    this.enableButton('reset-btn');
+                    document.getElementById('play-btn').disabled = false;
+                    document.getElementById('reset-btn').disabled = false;
                     
                 } catch (error) {
                     console.error('Loading failed:', error);
                     this.setStatus(`Error: ${error.message}`, true);
-                } finally {
-                    this.hideLoading();
-                    this.enableButton('load-btn');
-                    this.isLoading = false;
                 }
             }
             
-            async parsePLYGaussians(arrayBuffer) {
-                console.log(`Parsing PLY file (${arrayBuffer.byteLength} bytes)`);
-                
+            readFileAsArrayBuffer(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = e => resolve(e.target.result);
+                    reader.onerror = e => reject(new Error('Failed to read file'));
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+            
+            parsePLY(arrayBuffer) {
                 try {
-                    // Read header - based on gsplat.js PLYLoader
-                    const ubuf = new Uint8Array(arrayBuffer);
-                    const headerText = new TextDecoder().decode(ubuf.slice(0, 1024 * 10));
+                    console.log(`Parsing PLY (${arrayBuffer.byteLength} bytes)`);
                     
-                    const header_end = "end_header\n";
-                    const header_end_index = headerText.indexOf(header_end);
-                    if (header_end_index < 0) {
-                        throw new Error("Unable to read PLY file header");
+                    // Read header
+                    const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
+                    const headerText = new TextDecoder().decode(headerView);
+                    
+                    const endIndex = headerText.indexOf('end_header\n');
+                    if (endIndex === -1) {
+                        throw new Error('Invalid PLY format - no end_header found');
                     }
+                    
+                    const lines = headerText.substring(0, endIndex).split('\n');
                     
                     // Parse vertex count
-                    const vertexCountMatch = /element vertex (\d+)\n/.exec(headerText);
-                    if (!vertexCountMatch) {
-                        throw new Error("No vertex count found in PLY header");
-                    }
-                    const vertexCount = parseInt(vertexCountMatch[1]);
-                    
-                    console.log(`PLY has ${vertexCount} vertices`);
-                    
-                    // Parse properties
+                    let vertexCount = 0;
                     const properties = [];
-                    let rowOffset = 0;
-                    const offsets = {
-                        'double': 8, 'int': 4, 'uint': 4, 'float': 4,
-                        'short': 2, 'ushort': 2, 'uchar': 1
-                    };
                     
-                    for (const prop of headerText.slice(0, header_end_index).split("\n").filter(k => k.startsWith("property "))) {
-                        const [_p, type, name] = prop.split(" ");
-                        properties.push({ name, type, offset: rowOffset });
-                        
-                        if (!offsets[type]) {
-                            throw new Error(`Unsupported property type: ${type}`);
+                    for (const line of lines) {
+                        if (line.startsWith('element vertex ')) {
+                            vertexCount = parseInt(line.split(' ')[2]);
+                        } else if (line.startsWith('property float ')) {
+                            properties.push(line.split(' ')[2]);
                         }
-                        rowOffset += offsets[type];
                     }
                     
-                    console.log(`Found ${properties.length} properties, row size: ${rowOffset} bytes`);
+                    console.log(`PLY has ${vertexCount} vertices with properties:`, properties);
+                    
+                    if (vertexCount === 0) {
+                        throw new Error('No vertices found');
+                    }
                     
                     // Read binary data
-                    const dataView = new DataView(arrayBuffer, header_end_index + header_end.length);
-                    const gaussians = [];
+                    const headerEndByte = endIndex + 11;
+                    const dataView = new DataView(arrayBuffer, headerEndByte);
+                    const points = [];
+                    const bytesPerVertex = properties.length * 4; // 4 bytes per float
                     
-                    // Sample points for performance
-                    const maxGaussians = 8000;
-                    const step = Math.max(1, Math.floor(vertexCount / maxGaussians));
+                    // Sample points for performance (max 5000)
+                    const maxPoints = 5000;
+                    const step = Math.max(1, Math.floor(vertexCount / maxPoints));
                     
                     for (let i = 0; i < vertexCount; i += step) {
-                        const gaussian = {
+                        const offset = i * bytesPerVertex;
+                        
+                        if (offset + bytesPerVertex > dataView.byteLength) {
+                            break;
+                        }
+                        
+                        const point = {
                             position: [0, 0, 0],
-                            scale: [0.01, 0.01, 0.01],
-                            rotation: [1, 0, 0, 0], // quaternion: w, x, y, z
                             color: [1, 1, 1],
                             opacity: 1.0
                         };
                         
-                        // Read properties for this vertex
-                        for (const property of properties) {
-                            let value;
-                            const offset = property.offset + i * rowOffset;
+                        // Read each property
+                        for (let j = 0; j < properties.length; j++) {
+                            const propOffset = offset + j * 4;
+                            const value = dataView.getFloat32(propOffset, true); // little endian
+                            const propName = properties[j];
                             
-                            switch (property.type) {
-                                case 'float':
-                                    value = dataView.getFloat32(offset, true);
-                                    break;
-                                case 'int':
-                                    value = dataView.getInt32(offset, true);
-                                    break;
-                                default:
-                                    continue; // Skip unsupported types
-                            }
-                            
-                            // Map properties to Gaussian parameters (based on gsplat.js)
-                            switch (property.name) {
+                            // Map common PLY properties
+                            switch (propName) {
                                 case 'x':
-                                    gaussian.position[0] = value;
+                                    point.position[0] = value;
                                     break;
                                 case 'y':
-                                    gaussian.position[1] = value;
+                                    point.position[1] = value;
                                     break;
                                 case 'z':
-                                    gaussian.position[2] = value;
+                                    point.position[2] = value;
                                     break;
-                                case 'scale_0':
-                                case 'scaling_0':
-                                    gaussian.scale[0] = Math.exp(value);
-                                    break;
-                                case 'scale_1':
-                                case 'scaling_1':
-                                    gaussian.scale[1] = Math.exp(value);
-                                    break;
-                                case 'scale_2':
-                                case 'scaling_2':
-                                    gaussian.scale[2] = Math.exp(value);
-                                    break;
-                                case 'f_dc_0': // Spherical harmonics color
-                                    gaussian.color[0] = Math.max(0, Math.min(1, 0.5 + this.SH_C0 * value));
+                                case 'f_dc_0':
+                                    point.color[0] = Math.max(0, Math.min(1, value + 0.5));
                                     break;
                                 case 'f_dc_1':
-                                    gaussian.color[1] = Math.max(0, Math.min(1, 0.5 + this.SH_C0 * value));
+                                    point.color[1] = Math.max(0, Math.min(1, value + 0.5));
                                     break;
                                 case 'f_dc_2':
-                                    gaussian.color[2] = Math.max(0, Math.min(1, 0.5 + this.SH_C0 * value));
+                                    point.color[2] = Math.max(0, Math.min(1, value + 0.5));
                                     break;
                                 case 'opacity':
-                                    gaussian.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
-                                    break;
-                                case 'rot_0': // Quaternion components
-                                case 'rotation_0':
-                                    gaussian.rotation[0] = value; // w
-                                    break;
-                                case 'rot_1':
-                                case 'rotation_1':
-                                    gaussian.rotation[1] = value; // x
-                                    break;
-                                case 'rot_2':
-                                case 'rotation_2':
-                                    gaussian.rotation[2] = value; // y
-                                    break;
-                                case 'rot_3':
-                                case 'rotation_3':
-                                    gaussian.rotation[3] = value; // z
+                                    point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
                                     break;
                             }
                         }
                         
-                        // Normalize quaternion
-                        const quat = gaussian.rotation;
-                        const qLength = Math.sqrt(quat[0]*quat[0] + quat[1]*quat[1] + quat[2]*quat[2] + quat[3]*quat[3]);
-                        if (qLength > 0) {
-                            for (let j = 0; j < 4; j++) {
-                                quat[j] /= qLength;
-                            }
-                        }
-                        
-                        gaussians.push(gaussian);
+                        points.push(point);
                     }
                     
-                    console.log(`Parsed ${gaussians.length} Gaussian splats from PLY`);
-                    return gaussians;
+                    console.log(`Parsed ${points.length} points from PLY`);
+                    return points;
                     
                 } catch (error) {
                     console.error('PLY parsing error:', error);
-                    return [];
+                    throw error;
                 }
             }
             
             showFrame(frameIndex) {
                 if (frameIndex < 0 || frameIndex >= this.frames.length) return;
                 
-                // Clear existing objects
-                while (this.scene.children.length > 1) { // Keep lighting
-                    this.scene.remove(this.scene.children[1]);
-                }
+                // Clear scene (except lights)
+                const objectsToRemove = [];
+                this.scene.traverse(child => {
+                    if (child instanceof THREE.Mesh) {
+                        objectsToRemove.push(child);
+                    }
+                });
+                objectsToRemove.forEach(obj => this.scene.remove(obj));
                 
+                // Add points from current frame
                 const frame = this.frames[frameIndex];
                 const group = new THREE.Group();
                 
-                // Create Gaussian splats as ellipsoids
-                for (const gaussian of frame.gaussians) {
-                    // Create ellipsoid geometry based on scale
-                    const geometry = new THREE.SphereGeometry(1, 8, 6);
-                    
-                    // Apply Gaussian scale
-                    const scaleMatrix = new THREE.Matrix4().makeScale(
-                        Math.max(0.001, gaussian.scale[0]),
-                        Math.max(0.001, gaussian.scale[1]),
-                        Math.max(0.001, gaussian.scale[2])
-                    );
-                    geometry.applyMatrix4(scaleMatrix);
-                    
-                    const material = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color(gaussian.color[0], gaussian.color[1], gaussian.color[2]),
+                for (const point of frame.points) {
+                    const geometry = new THREE.SphereGeometry(0.02, 8, 6);
+                    const material = new THREE.MeshLambertMaterial({
+                        color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
                         transparent: true,
-                        opacity: gaussian.opacity,
-                        side: THREE.DoubleSide
+                        opacity: point.opacity
                     });
                     
                     const mesh = new THREE.Mesh(geometry, material);
-                    
-                    // Set position
-                    mesh.position.set(gaussian.position[0], gaussian.position[1], gaussian.position[2]);
-                    
-                    // Apply rotation (quaternion)
-                    const quat = gaussian.rotation;
-                    mesh.quaternion.set(quat[1], quat[2], quat[3], quat[0]); // Three.js uses x,y,z,w order
-                    
+                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
                     group.add(mesh);
                 }
                 
                 this.scene.add(group);
-                document.getElementById('current-frame').textContent = frameIndex;
-                document.getElementById('point-count').textContent = frame.gaussians.length;
                 
-                console.log(`Showing frame ${frameIndex} with ${frame.gaussians.length} gaussians`);
+                this.currentFrame = frameIndex;
+                document.getElementById('frame-display').textContent = `Frame: ${frameIndex + 1}/${this.frames.length}`;
+                document.getElementById('point-count').textContent = frame.points.length;
+                
+                console.log(`Showing frame ${frameIndex}: ${frame.points.length} points`);
             }
             
             play() {
-                if (this.frames.length === 0) {
-                    this.setStatus('Load PLY data first!', true);
-                    return;
-                }
+                if (this.frames.length <= 1) return;
                 
                 this.isPlaying = true;
-                this.disableButton('play-btn');
-                this.enableButton('pause-btn');
-                this.setStatus('Playing Gaussian sequence');
+                document.getElementById('play-btn').disabled = true;
+                document.getElementById('pause-btn').disabled = false;
+                this.setStatus('Playing');
+                
+                this.playInterval = setInterval(() => {
+                    this.currentFrame = (this.currentFrame + 1) % this.frames.length;
+                    this.showFrame(this.currentFrame);
+                }, this.playSpeed);
             }
             
             pause() {
                 this.isPlaying = false;
-                this.enableButton('play-btn');
-                this.disableButton('pause-btn');
+                document.getElementById('play-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
                 this.setStatus('Paused');
+                
+                if (this.playInterval) {
+                    clearInterval(this.playInterval);
+                }
             }
             
             reset() {
-                this.isPlaying = false;
-                this.currentTime = 0;
-                this.enableButton('play-btn');
-                this.disableButton('pause-btn');
-                
+                this.pause();
+                this.currentFrame = 0;
                 if (this.frames.length > 0) {
                     this.showFrame(0);
                 }
-                
-                this.updateTimeDisplay();
-                this.setStatus('Reset to beginning');
-            }
-            
-            updateTimeDisplay() {
-                const minutes = Math.floor(this.currentTime / 60);
-                const seconds = Math.floor(this.currentTime % 60);
-                
-                document.getElementById('time-display').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}/16:00`;
-                
-                const progress = (this.currentTime / this.totalTime) * 100;
-                document.getElementById('progress-fill').style.width = `${progress}%`;
+                this.setStatus('Reset');
             }
             
             startRenderLoop() {
-                const frame = () => {
-                    // Update animation
-                    if (this.isPlaying && this.frames.length > 0) {
-                        this.currentTime += 1 / 60;
-                        
-                        if (this.currentTime >= this.totalTime) {
-                            this.currentTime = 0;
-                        }
-                        
-                        // Update frame
-                        const progress = this.currentTime / this.totalTime;
-                        const frameIndex = Math.floor(progress * (this.frames.length - 1));
-                        this.showFrame(frameIndex);
-                        
-                        this.updateTimeDisplay();
-                    }
-                    
-                    // Render
+                const animate = () => {
+                    requestAnimationFrame(animate);
                     this.controls.update();
                     this.renderer.render(this.scene, this.camera);
-                    
-                    requestAnimationFrame(frame);
                 };
-                
-                requestAnimationFrame(frame);
-                console.log('Render loop started');
-            }
-            
-            enableButton(id) {
-                document.getElementById(id).disabled = false;
-            }
-            
-            disableButton(id) {
-                document.getElementById(id).disabled = true;
+                animate();
             }
             
             setStatus(message, isError = false) {
@@ -620,23 +457,10 @@
                 statusEl.textContent = message;
                 statusEl.className = isError ? 'error' : 'status';
             }
-            
-            showLoading() {
-                document.getElementById('loading').style.display = 'block';
-            }
-            
-            hideLoading() {
-                document.getElementById('loading').style.display = 'none';
-            }
         }
         
-        // Start the demo
-        try {
-            new GaussianSplattingDemo();
-            console.log('Demo started successfully!');
-        } catch (error) {
-            console.error('Demo failed to start:', error);
-        }
+        // Start the test
+        new SimplePLYTest();
     </script>
 </body>
 </html>
