@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4D Gaussian Splatting AR Demo V3</title>
+    <title>4D Gaussian Splatting AR Demo V5</title>
     <style>
         * {
             margin: 0;
@@ -148,7 +148,7 @@
     </div>
     
     <div id="ui">
-        <div>Status: <span id="status" class="status">Ready</span></div>
+        <div>Status: <span id="status" class="status">Loading Three.js...</span></div>
         <div>Frames: <span id="frame-count">0</span>/400</div>
         <div>Points: <span id="point-count">0</span></div>
         <div>Current: <span id="current-frame">0</span></div>
@@ -157,7 +157,7 @@
     </div>
     
     <div id="controls">
-        <button id="load-btn">Load Data</button>
+        <button id="load-btn" disabled>Load Data</button>
         <button id="play-btn" disabled>Play</button>
         <button id="pause-btn" disabled>Pause</button>
         <button id="reset-btn" disabled>Reset</button>
@@ -170,13 +170,17 @@
     </div>
 
     <script type="module">
+        console.log('Starting AR Demo V5...');
+        
         import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
         import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
         
-        console.log('Three.js loaded:', THREE.REVISION);
+        console.log('Three.js loaded successfully:', THREE.REVISION);
         
         class ARGaussianDemo {
             constructor() {
+                console.log('Initializing AR Gaussian Demo...');
+                
                 // Scene setup
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -225,6 +229,8 @@
                 this.animate();
                 
                 this.setStatus('Ready - Click Load Data to start');
+                document.getElementById('load-btn').disabled = false;
+                console.log('AR Demo initialized successfully');
             }
             
             setupUI() {
@@ -364,6 +370,8 @@
                     const baseUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/';
                     const totalFrames = 400;
                     
+                    console.log('Starting to load', totalFrames, 'frames from', baseUrl);
+                    
                     for (let i = 1; i <= totalFrames; i++) {
                         const frameNum = i.toString().padStart(6, '0');
                         const url = `${baseUrl}compressed_frame_${frameNum}.ply`;
@@ -371,12 +379,14 @@
                         document.getElementById('load-progress').textContent = `${i}/${totalFrames}`;
                         
                         try {
+                            console.log(`Loading frame ${i}:`, url);
                             const response = await fetch(url);
+                            
                             if (!response.ok) {
                                 if (i === 1) {
-                                    throw new Error(`Cannot access data: ${response.status}`);
+                                    throw new Error(`Cannot access data: ${response.status} - ${response.statusText}`);
                                 }
-                                console.log(`Stopped at frame ${i-1}`);
+                                console.log(`Stopped at frame ${i-1} - ${response.status}`);
                                 break;
                             }
                             
@@ -388,10 +398,13 @@
                                     timestamp: (i - 1) / (totalFrames - 1) * this.totalTime,
                                     points: points
                                 });
+                                console.log(`Frame ${i} loaded: ${points.length} points`);
+                            } else {
+                                console.log(`Frame ${i} has no points`);
                             }
                             
-                            // Update UI every 50 frames
-                            if (i % 50 === 0) {
+                            // Update UI every 10 frames
+                            if (i % 10 === 0) {
                                 document.getElementById('frame-count').textContent = this.frames.length;
                                 await new Promise(resolve => setTimeout(resolve, 1));
                             }
@@ -404,7 +417,7 @@
                     }
                     
                     if (this.frames.length === 0) {
-                        throw new Error('No frames loaded');
+                        throw new Error('No frames loaded successfully');
                     }
                     
                     document.getElementById('frame-count').textContent = this.frames.length;
@@ -414,6 +427,8 @@
                     // Enable controls
                     document.getElementById('play-btn').disabled = false;
                     document.getElementById('reset-btn').disabled = false;
+                    
+                    console.log('Loading completed successfully:', this.frames.length, 'frames');
                     
                 } catch (error) {
                     console.error('Loading failed:', error);
@@ -514,6 +529,8 @@
             
             async startAR() {
                 try {
+                    this.setStatus('Starting AR session...');
+                    
                     this.xrSession = await navigator.xr.requestSession('immersive-ar', {
                         requiredFeatures: ['local', 'hit-test']
                     });
@@ -563,6 +580,8 @@
             placeContent() {
                 if (!this.frames.length || !this.reticle.visible) return;
                 
+                console.log('Placing content in AR at reticle position');
+                
                 if (this.arContent) {
                     this.scene.remove(this.arContent);
                 }
@@ -575,6 +594,7 @@
                 if (currentFrame) {
                     this.renderPoints(currentFrame.points, this.arContent);
                     this.scene.add(this.arContent);
+                    console.log('Content placed successfully');
                 }
             }
             
@@ -721,8 +741,15 @@
         }
         
         // Start the app
-        console.log('Starting AR Gaussian Demo...');
-        new ARGaussianDemo();
+        console.log('Creating AR Gaussian Demo instance...');
+        try {
+            new ARGaussianDemo();
+            console.log('AR Demo started successfully!');
+        } catch (error) {
+            console.error('Failed to start AR Demo:', error);
+            document.getElementById('status').textContent = 'Failed to start: ' + error.message;
+            document.getElementById('status').className = 'error';
+        }
     </script>
 </body>
 </html>
