@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keyframe AR Demo - 25fps Playback</title>
+    <title>4D Gaussian Splatting AR Demo - Auto-Loading</title>
     <style>
         body {
             margin: 0;
@@ -11,6 +11,7 @@
             background: #000;
             font-family: Arial, sans-serif;
             overflow: hidden;
+            touch-action: none;
         }
 
         #container {
@@ -36,6 +37,26 @@
             z-index: 100;
             font-size: 14px;
             max-width: 350px;
+            transition: opacity 0.3s;
+        }
+
+        #controls.ar-mode {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+        }
+
+        #ar-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+            display: none;
+            backdrop-filter: blur(10px);
         }
 
         #timeline {
@@ -47,6 +68,13 @@
             padding: 15px;
             border-radius: 8px;
             z-index: 100;
+            transition: opacity 0.3s;
+        }
+
+        #timeline.ar-mode {
+            bottom: 100px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
         }
 
         #progress-bar {
@@ -82,6 +110,7 @@
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
+            touch-action: manipulation;
         }
 
         button:hover {
@@ -91,6 +120,16 @@
         button:disabled {
             background: #555;
             cursor: not-allowed;
+        }
+
+        button.ar-button {
+            background: #ff6b35;
+            font-size: 14px;
+            padding: 12px 20px;
+        }
+
+        button.ar-button:hover {
+            background: #ff8c42;
         }
 
         input[type="range"] {
@@ -123,6 +162,11 @@
 
         .error {
             color: #ff4444;
+            font-weight: bold;
+        }
+
+        .warning {
+            color: #ffaa00;
             font-weight: bold;
         }
 
@@ -167,6 +211,48 @@
             max-height: 60px;
             overflow-y: auto;
         }
+
+        .ar-instructions {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            z-index: 150;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .gesture-info {
+            position: absolute;
+            top: 70px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            z-index: 100;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+
+        @media (max-width: 768px) {
+            #controls {
+                font-size: 12px;
+                max-width: 280px;
+                padding: 10px;
+            }
+            
+            button {
+                font-size: 11px;
+                padding: 6px 12px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -175,18 +261,41 @@
         
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <div id="load-message">Loading Keyframes...</div>
+            <div id="load-message">Auto-loading from GitHub...</div>
             <div id="load-progress">0%</div>
+        </div>
+
+        <div id="ar-instructions" class="ar-instructions">
+            <h3>AR Mode Active</h3>
+            <p>Tap on any surface to place the Gaussian Splatting content</p>
+            <p>Use pinch gestures to scale • Drag to rotate</p>
+            <button onclick="this.parentElement.style.display='none'">Got it!</button>
+        </div>
+
+        <div id="gesture-info" class="gesture-info">
+            <div>Pinch: Scale</div>
+            <div>Drag: Rotate</div>
+            <div>Tap: Reposition</div>
         </div>
 
         <div id="controls">
             <div class="control-group">
-                <label>Files:</label>
+                <button id="ar-btn" class="ar-button">Enter AR</button>
+                <button id="exit-ar-btn" class="ar-button" style="display: none;">Exit AR</button>
+            </div>
+
+            <div class="control-group">
+                <label>Auto-load:</label>
+                <button id="auto-load-btn">Load from GitHub</button>
+                <button id="manual-load-btn">Manual Upload</button>
+            </div>
+            
+            <div class="control-group" id="manual-upload" style="display: none;">
                 <input type="file" id="folder-input" webkitdirectory multiple accept=".ply" />
             </div>
             
             <div class="control-group">
-                <span id="status" class="status">Ready - Select PLY folder</span>
+                <span id="status" class="status">Click 'Load from GitHub' to start</span>
             </div>
             
             <div class="control-group">
@@ -224,6 +333,15 @@
             <div id="debug-info" class="debug"></div>
         </div>
 
+        <div id="ar-controls">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="ar-play-btn">Play</button>
+                <button id="ar-pause-btn">Pause</button>
+                <button id="ar-reset-btn">Reset</button>
+                <span style="color: #aaa;">Scale: <span id="ar-scale">1.0x</span></span>
+            </div>
+        </div>
+
         <div id="timeline">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span>Time: <span id="current-time">00:00</span> / <span id="total-time">16:00</span></span>
@@ -239,7 +357,7 @@
         import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
         import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
 
-        class KeyframePlayer {
+        class ARGaussianSplatting {
             constructor() {
                 this.scene = null;
                 this.camera = null;
@@ -257,65 +375,130 @@
                 this.interpolationMode = 'linear';
                 this.qualityScale = 1.0;
                 
+                // AR specific
+                this.isARMode = false;
+                this.xrSession = null;
+                this.xrReferenceSpace = null;
+                this.hitTestSource = null;
+                this.reticle = null;
+                this.arContent = null;
+                this.arScale = 1.0;
+                this.arRotation = { x: 0, y: 0 };
+                
+                // Touch handling
+                this.touches = new Map();
+                this.lastTouchDistance = 0;
+                this.isRotating = false;
+                this.lastRotation = { x: 0, y: 0 };
+                
                 this.debugLog = this.debugLog.bind(this);
                 
+                this.checkARSupport();
                 this.initScene();
                 this.setupControls();
+                this.setupTouchHandlers();
             }
             
             debugLog(message) {
                 console.log(message);
                 const debugEl = document.getElementById('debug-info');
                 debugEl.innerHTML = message + '<br>' + debugEl.innerHTML;
-                // Keep only last 5 lines
                 const lines = debugEl.innerHTML.split('<br>');
                 if (lines.length > 5) {
                     debugEl.innerHTML = lines.slice(0, 5).join('<br>');
                 }
             }
             
+            async checkARSupport() {
+                if ('xr' in navigator) {
+                    try {
+                        const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                        if (isSupported) {
+                            this.debugLog('WebXR AR supported');
+                            document.getElementById('ar-btn').disabled = false;
+                        } else {
+                            this.debugLog('WebXR AR not supported');
+                            this.showARFallbackMessage();
+                        }
+                    } catch (error) {
+                        this.debugLog('WebXR not available');
+                        this.showARFallbackMessage();
+                    }
+                } else {
+                    this.debugLog('WebXR not supported by browser');
+                    this.showARFallbackMessage();
+                }
+            }
+            
+            showARFallbackMessage() {
+                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+                if (isIOS) {
+                    this.updateStatus('iOS: WebXR AR limited. Try Chrome or use Safari with ARKit-based solutions', false, 'warning');
+                } else {
+                    this.updateStatus('AR not supported. Use Chrome on Android or WebXR-compatible browser', false, 'warning');
+                }
+                document.getElementById('ar-btn').disabled = true;
+            }
+            
             initScene() {
-                // Scene setup
                 this.scene = new THREE.Scene();
                 this.scene.background = new THREE.Color(0x000000);
                 
-                // Camera
                 this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
                 this.camera.position.set(0, 1, 3);
                 
-                // Renderer
                 const canvas = document.getElementById('canvas');
-                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas, 
+                    antialias: true, 
+                    alpha: true,
+                    preserveDrawingBuffer: true
+                });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                this.renderer.xr.enabled = true;
                 
-                // Controls
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
                 this.controls.dampingFactor = 0.05;
                 
-                // Lighting
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 this.scene.add(ambientLight);
                 
-                // Start render loop
+                this.createReticle();
                 this.animate();
                 
                 this.debugLog('Scene initialized');
             }
             
+            createReticle() {
+                const geometry = new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2);
+                const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+                this.reticle = new THREE.Mesh(geometry, material);
+                this.reticle.matrixAutoUpdate = false;
+                this.reticle.visible = false;
+                this.scene.add(this.reticle);
+            }
+            
             setupControls() {
-                // File input
+                document.getElementById('auto-load-btn').addEventListener('click', () => this.autoLoadFromGitHub());
+                document.getElementById('manual-load-btn').addEventListener('click', () => this.showManualUpload());
+                
                 document.getElementById('folder-input').addEventListener('change', (e) => {
                     this.loadFiles(e.target.files);
                 });
                 
-                // Playback
                 document.getElementById('play-btn').addEventListener('click', () => this.play());
                 document.getElementById('pause-btn').addEventListener('click', () => this.pause());
                 document.getElementById('reset-btn').addEventListener('click', () => this.reset());
                 
-                // Settings
+                document.getElementById('ar-play-btn').addEventListener('click', () => this.play());
+                document.getElementById('ar-pause-btn').addEventListener('click', () => this.pause());
+                document.getElementById('ar-reset-btn').addEventListener('click', () => this.reset());
+                
+                document.getElementById('ar-btn').addEventListener('click', () => this.startAR());
+                document.getElementById('exit-ar-btn').addEventListener('click', () => this.exitAR());
+                
                 document.getElementById('interp-mode').addEventListener('change', (e) => {
                     this.interpolationMode = e.target.value;
                     this.debugLog(`Interpolation: ${this.interpolationMode}`);
@@ -332,7 +515,6 @@
                     this.updateVisualization();
                 });
                 
-                // Timeline click
                 document.getElementById('progress-bar').addEventListener('click', (e) => {
                     if (this.keyframes.length > 0) {
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -343,8 +525,187 @@
                     }
                 });
                 
-                // Window resize
                 window.addEventListener('resize', () => this.onWindowResize());
+            }
+            
+            setupTouchHandlers() {
+                const canvas = document.getElementById('canvas');
+                
+                canvas.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
+                canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
+                canvas.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: false });
+                
+                canvas.addEventListener('click', (e) => this.onCanvasClick(e));
+            }
+            
+            onTouchStart(event) {
+                event.preventDefault();
+                
+                if (!this.isARMode) return;
+                
+                this.touches.clear();
+                for (let touch of event.touches) {
+                    this.touches.set(touch.identifier, {
+                        x: touch.clientX,
+                        y: touch.clientY
+                    });
+                }
+                
+                if (event.touches.length === 2) {
+                    const touch1 = event.touches[0];
+                    const touch2 = event.touches[1];
+                    this.lastTouchDistance = Math.hypot(
+                        touch1.clientX - touch2.clientX,
+                        touch1.clientY - touch2.clientY
+                    );
+                } else if (event.touches.length === 1) {
+                    this.isRotating = true;
+                    this.lastRotation = {
+                        x: event.touches[0].clientX,
+                        y: event.touches[0].clientY
+                    };
+                }
+            }
+            
+            onTouchMove(event) {
+                event.preventDefault();
+                
+                if (!this.isARMode || !this.arContent) return;
+                
+                if (event.touches.length === 2) {
+                    // Pinch to scale
+                    const touch1 = event.touches[0];
+                    const touch2 = event.touches[1];
+                    const distance = Math.hypot(
+                        touch1.clientX - touch2.clientX,
+                        touch1.clientY - touch2.clientY
+                    );
+                    
+                    if (this.lastTouchDistance > 0) {
+                        const scale = distance / this.lastTouchDistance;
+                        this.arScale *= scale;
+                        this.arScale = Math.max(0.1, Math.min(5.0, this.arScale));
+                        this.arContent.scale.setScalar(this.arScale);
+                        document.getElementById('ar-scale').textContent = this.arScale.toFixed(1) + 'x';
+                    }
+                    
+                    this.lastTouchDistance = distance;
+                } else if (event.touches.length === 1 && this.isRotating) {
+                    // Drag to rotate
+                    const deltaX = event.touches[0].clientX - this.lastRotation.x;
+                    const deltaY = event.touches[0].clientY - this.lastRotation.y;
+                    
+                    this.arRotation.y += deltaX * 0.01;
+                    this.arRotation.x += deltaY * 0.01;
+                    
+                    this.arContent.rotation.set(this.arRotation.x, this.arRotation.y, 0);
+                    
+                    this.lastRotation = {
+                        x: event.touches[0].clientX,
+                        y: event.touches[0].clientY
+                    };
+                }
+            }
+            
+            onTouchEnd(event) {
+                event.preventDefault();
+                
+                if (event.touches.length === 0) {
+                    this.isRotating = false;
+                    this.lastTouchDistance = 0;
+                    this.touches.clear();
+                }
+            }
+            
+            onCanvasClick(event) {
+                if (this.isARMode && this.reticle.visible && this.keyframes.length > 0) {
+                    this.placeContent();
+                }
+            }
+            
+            showManualUpload() {
+                document.getElementById('manual-upload').style.display = 'flex';
+                this.updateStatus('Select PLY folder for manual upload');
+            }
+            
+            async autoLoadFromGitHub() {
+                this.showLoading();
+                this.updateStatus('Auto-loading from GitHub...');
+                
+                try {
+                    const baseUrl = 'https://lumigrade.github.io/LumiAR/data/';
+                    const totalFrames = 400;
+                    this.keyframes = [];
+                    
+                    for (let i = 1; i <= totalFrames; i++) {
+                        const frameNumber = i.toString().padStart(6, '0');
+                        const url = `${baseUrl}compressed_frame_${frameNumber}.ply`;
+                        
+                        const progress = (i / totalFrames * 100);
+                        document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
+                        document.getElementById('load-message').textContent = `Loading frame ${i}/${totalFrames}...`;
+                        
+                        try {
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                if (i === 1) {
+                                    throw new Error(`Cannot access GitHub data. Status: ${response.status}`);
+                                } else {
+                                    this.debugLog(`Frame ${i} not found, stopping at ${i-1} frames`);
+                                    break;
+                                }
+                            }
+                            
+                            const arrayBuffer = await response.arrayBuffer();
+                            const points = this.parsePLY(arrayBuffer);
+                            
+                            if (points && points.length > 0) {
+                                const timestamp = ((i - 1) / (totalFrames - 1)) * this.totalDuration;
+                                
+                                this.keyframes.push({
+                                    timestamp: timestamp,
+                                    points: points,
+                                    filename: `compressed_frame_${frameNumber}.ply`
+                                });
+                                
+                                if (i % 50 === 0) {
+                                    this.debugLog(`Loaded ${i} frames successfully`);
+                                }
+                            }
+                            
+                            // Allow UI to update every 10 frames
+                            if (i % 10 === 0) {
+                                await new Promise(resolve => setTimeout(resolve, 1));
+                            }
+                            
+                        } catch (error) {
+                            if (i === 1) {
+                                throw error;
+                            } else {
+                                this.debugLog(`Stopping at frame ${i-1}: ${error.message}`);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (this.keyframes.length === 0) {
+                        throw new Error('No frames loaded successfully');
+                    }
+                    
+                    this.updateUI();
+                    this.updateVisualization();
+                    this.updateStatus(`Loaded ${this.keyframes.length} frames from GitHub`);
+                    this.hideLoading();
+                    
+                    document.getElementById('play-btn').disabled = false;
+                    document.getElementById('reset-btn').disabled = false;
+                    
+                } catch (error) {
+                    this.debugLog(`Auto-loading failed: ${error.message}`);
+                    this.updateStatus(`Auto-load failed: ${error.message}. Try manual upload.`, true);
+                    this.hideLoading();
+                    this.showManualUpload();
+                }
             }
             
             async loadFiles(files) {
@@ -357,7 +718,6 @@
                 this.updateStatus('Loading files...');
                 
                 try {
-                    // Filter PLY files
                     const plyFiles = Array.from(files)
                         .filter(file => file.name.toLowerCase().endsWith('.ply'))
                         .sort((a, b) => a.name.localeCompare(b.name));
@@ -373,7 +733,6 @@
                     for (let i = 0; i < plyFiles.length; i++) {
                         const file = plyFiles[i];
                         
-                        // Update progress
                         const progress = ((i + 1) / plyFiles.length * 100);
                         document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
                         document.getElementById('load-message').textContent = `Loading ${file.name}...`;
@@ -398,7 +757,6 @@
                             this.debugLog(`Error loading ${file.name}: ${error.message}`);
                         }
                         
-                        // Allow UI to update
                         await new Promise(resolve => setTimeout(resolve, 10));
                     }
                     
@@ -411,7 +769,6 @@
                     this.updateStatus(`Loaded ${this.keyframes.length} keyframes`);
                     this.hideLoading();
                     
-                    // Enable controls
                     document.getElementById('play-btn').disabled = false;
                     document.getElementById('reset-btn').disabled = false;
                     
@@ -443,7 +800,6 @@
             
             parsePLY(arrayBuffer) {
                 try {
-                    // Convert to text to find header
                     const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
                     const headerText = new TextDecoder().decode(headerView);
                     
@@ -452,9 +808,7 @@
                         throw new Error('Invalid PLY file - no end_header found');
                     }
                     
-                    const headerEndByte = headerEndIndex + 11; // 'end_header\n'.length
-                    
-                    // Parse header
+                    const headerEndByte = headerEndIndex + 11;
                     const header = headerText.substring(0, headerEndIndex);
                     const lines = header.split('\n');
                     
@@ -473,10 +827,9 @@
                         throw new Error('No vertices found in PLY file');
                     }
                     
-                    // Read binary data
                     const dataView = new DataView(arrayBuffer, headerEndByte);
                     const points = [];
-                    const bytesPerVertex = properties.length * 4; // 4 bytes per float
+                    const bytesPerVertex = properties.length * 4;
                     
                     for (let i = 0; i < vertexCount; i++) {
                         const offset = i * bytesPerVertex;
@@ -489,7 +842,7 @@
                         
                         for (let j = 0; j < properties.length; j++) {
                             const propOffset = offset + j * 4;
-                            const value = dataView.getFloat32(propOffset, true); // little endian
+                            const value = dataView.getFloat32(propOffset, true);
                             const propName = properties[j];
                             
                             if (propName === 'x') point.position[0] = value;
@@ -513,11 +866,140 @@
                 }
             }
             
+            async startAR() {
+                if (!navigator.xr) {
+                    this.updateStatus('WebXR not supported', true);
+                    return;
+                }
+                
+                try {
+                    this.updateStatus('Starting AR session...');
+                    
+                    this.xrSession = await navigator.xr.requestSession('immersive-ar', {
+                        requiredFeatures: ['local', 'hit-test']
+                    });
+                    
+                    await this.renderer.xr.setSession(this.xrSession);
+                    
+                    this.xrReferenceSpace = await this.xrSession.requestReferenceSpace('local');
+                    
+                    this.hitTestSource = await this.xrSession.requestHitTestSource({
+                        space: await this.xrSession.requestReferenceSpace('viewer')
+                    });
+                    
+                    this.isARMode = true;
+                    
+                    // Update UI for AR mode
+                    document.getElementById('controls').classList.add('ar-mode');
+                    document.getElementById('timeline').classList.add('ar-mode');
+                    document.getElementById('ar-controls').style.display = 'block';
+                    document.getElementById('gesture-info').style.display = 'block';
+                    document.getElementById('ar-instructions').style.display = 'block';
+                    document.getElementById('ar-btn').style.display = 'none';
+                    document.getElementById('exit-ar-btn').style.display = 'inline-block';
+                    
+                    this.xrSession.addEventListener('end', () => this.onARSessionEnd());
+                    
+                    this.updateStatus('AR session active - tap to place content');
+                    this.debugLog('AR session started successfully');
+                    
+                } catch (error) {
+                    this.updateStatus(`AR failed: ${error.message}`, true);
+                    this.debugLog(`AR session failed: ${error.message}`);
+                }
+            }
+            
+            exitAR() {
+                if (this.xrSession) {
+                    this.xrSession.end();
+                }
+            }
+            
+            onARSessionEnd() {
+                this.isARMode = false;
+                this.hitTestSource = null;
+                this.xrSession = null;
+                this.xrReferenceSpace = null;
+                
+                if (this.arContent) {
+                    this.scene.remove(this.arContent);
+                    this.arContent = null;
+                }
+                
+                // Reset UI
+                document.getElementById('controls').classList.remove('ar-mode');
+                document.getElementById('timeline').classList.remove('ar-mode');
+                document.getElementById('ar-controls').style.display = 'none';
+                document.getElementById('gesture-info').style.display = 'none';
+                document.getElementById('ar-instructions').style.display = 'none';
+                document.getElementById('ar-btn').style.display = 'inline-block';
+                document.getElementById('exit-ar-btn').style.display = 'none';
+                
+                this.reticle.visible = false;
+                
+                this.updateStatus('AR session ended');
+                this.debugLog('AR session ended');
+            }
+            
+            placeContent() {
+                if (!this.keyframes.length || !this.reticle.visible) return;
+                
+                if (this.arContent) {
+                    this.scene.remove(this.arContent);
+                }
+                
+                this.arContent = new THREE.Group();
+                this.arContent.scale.setScalar(this.arScale);
+                this.arContent.position.copy(this.reticle.position);
+                this.arContent.rotation.set(this.arRotation.x, this.arRotation.y, 0);
+                
+                // Get current frame points
+                let points;
+                if (this.interpolationMode === 'none') {
+                    points = this.getNearestKeyframe().points;
+                } else {
+                    points = this.getInterpolatedPoints();
+                }
+                
+                this.renderPointsToGroup(points, this.arContent);
+                this.scene.add(this.arContent);
+                
+                this.debugLog('Content placed in AR');
+            }
+            
+            renderPointsToGroup(points, group) {
+                // Clear existing content
+                while (group.children.length > 0) {
+                    group.remove(group.children[0]);
+                }
+                
+                const sampleCount = Math.floor(points.length * this.qualityScale);
+                const step = Math.max(1, Math.floor(points.length / sampleCount));
+                
+                for (let i = 0; i < points.length; i += step) {
+                    const point = points[i];
+                    
+                    const geometry = new THREE.SphereGeometry(0.01, 4, 3);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
+                        transparent: true,
+                        opacity: point.opacity
+                    });
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
+                    
+                    group.add(mesh);
+                }
+            }
+            
             play() {
                 this.isPlaying = true;
                 this.lastFrameTime = performance.now();
                 document.getElementById('play-btn').disabled = true;
                 document.getElementById('pause-btn').disabled = false;
+                document.getElementById('ar-play-btn').disabled = true;
+                document.getElementById('ar-pause-btn').disabled = false;
                 this.updateStatus('Playing');
             }
             
@@ -525,6 +1007,8 @@
                 this.isPlaying = false;
                 document.getElementById('play-btn').disabled = false;
                 document.getElementById('pause-btn').disabled = true;
+                document.getElementById('ar-play-btn').disabled = false;
+                document.getElementById('ar-pause-btn').disabled = true;
                 this.updateStatus('Paused');
             }
             
@@ -533,6 +1017,8 @@
                 this.currentTime = 0;
                 document.getElementById('play-btn').disabled = false;
                 document.getElementById('pause-btn').disabled = true;
+                document.getElementById('ar-play-btn').disabled = false;
+                document.getElementById('ar-pause-btn').disabled = true;
                 this.updateVisualization();
                 this.updateStatus('Reset');
             }
@@ -543,14 +1029,17 @@
                 let points;
                 
                 if (this.interpolationMode === 'none') {
-                    // Show nearest keyframe
                     points = this.getNearestKeyframe().points;
                 } else {
-                    // Interpolate between keyframes
                     points = this.getInterpolatedPoints();
                 }
                 
-                this.renderPoints(points);
+                if (!this.isARMode) {
+                    this.renderPoints(points);
+                } else if (this.arContent) {
+                    this.renderPointsToGroup(points, this.arContent);
+                }
+                
                 this.updateTimeDisplay();
             }
             
@@ -570,7 +1059,6 @@
             }
             
             getInterpolatedPoints() {
-                // Find surrounding keyframes
                 let prev = null, next = null;
                 
                 for (let i = 0; i < this.keyframes.length - 1; i++) {
@@ -583,7 +1071,6 @@
                 }
                 
                 if (!prev || !next) {
-                    // Before first or after last
                     if (this.currentTime < this.keyframes[0].timestamp) {
                         return this.keyframes[0].points;
                     } else {
@@ -591,7 +1078,6 @@
                     }
                 }
                 
-                // Interpolate
                 const timeDiff = next.timestamp - prev.timestamp;
                 const t = timeDiff > 0 ? (this.currentTime - prev.timestamp) / timeDiff : 0;
                 const smoothT = this.interpolationMode === 'smooth' ? this.smoothstep(t) : t;
@@ -634,21 +1120,18 @@
             }
             
             renderPoints(points) {
-                // Remove previous points
                 if (this.pointsGroup) {
                     this.scene.remove(this.pointsGroup);
                 }
                 
                 this.pointsGroup = new THREE.Group();
                 
-                // Sample points based on quality
                 const sampleCount = Math.floor(points.length * this.qualityScale);
                 const step = Math.max(1, Math.floor(points.length / sampleCount));
                 
                 for (let i = 0; i < points.length; i += step) {
                     const point = points[i];
                     
-                    // Create sphere for each point
                     const geometry = new THREE.SphereGeometry(0.02, 6, 4);
                     const material = new THREE.MeshBasicMaterial({
                         color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
@@ -663,30 +1146,48 @@
                 }
                 
                 this.scene.add(this.pointsGroup);
-                
-                // Update point count display
                 document.getElementById('point-count').textContent = this.pointsGroup.children.length;
             }
             
             animate() {
-                requestAnimationFrame(() => this.animate());
-                
-                const now = performance.now();
-                const deltaTime = (now - this.lastFrameTime) / 1000;
-                
-                if (this.isPlaying && this.keyframes.length > 0) {
-                    this.currentTime += deltaTime;
+                this.renderer.setAnimationLoop(() => {
+                    const now = performance.now();
+                    const deltaTime = (now - this.lastFrameTime) / 1000;
                     
-                    if (this.currentTime >= this.totalDuration) {
-                        this.currentTime = 0; // Loop
+                    if (this.isPlaying && this.keyframes.length > 0) {
+                        this.currentTime += deltaTime;
+                        
+                        if (this.currentTime >= this.totalDuration) {
+                            this.currentTime = 0;
+                        }
+                        
+                        this.updateVisualization();
                     }
                     
-                    this.updateVisualization();
-                }
-                
-                this.lastFrameTime = now;
-                this.controls.update();
-                this.renderer.render(this.scene, this.camera);
+                    // Handle AR hit testing
+                    if (this.isARMode && this.hitTestSource && this.renderer.xr.getFrame) {
+                        const frame = this.renderer.xr.getFrame();
+                        if (frame) {
+                            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+                            
+                            if (hitTestResults.length > 0) {
+                                const hit = hitTestResults[0];
+                                this.reticle.visible = true;
+                                this.reticle.matrix.fromArray(hit.getPose(this.xrReferenceSpace).transform.matrix);
+                            } else {
+                                this.reticle.visible = false;
+                            }
+                        }
+                    }
+                    
+                    this.lastFrameTime = now;
+                    
+                    if (!this.isARMode) {
+                        this.controls.update();
+                    }
+                    
+                    this.renderer.render(this.scene, this.camera);
+                });
             }
             
             updateTimeDisplay() {
@@ -710,10 +1211,10 @@
                 document.getElementById('point-count').textContent = totalPoints;
             }
             
-            updateStatus(message, isError = false) {
+            updateStatus(message, isError = false, type = 'status') {
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = message;
-                statusEl.className = isError ? 'error' : 'status';
+                statusEl.className = type === 'warning' ? 'warning' : (isError ? 'error' : 'status');
             }
             
             showLoading() {
@@ -732,7 +1233,7 @@
         }
         
         // Start the application
-        new KeyframePlayer();
+        new ARGaussianSplatting();
     </script>
 </body>
 </html>
