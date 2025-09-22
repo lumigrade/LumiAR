@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4D Gaussian Splatting AR Demo V6 - gsplat.js</title>
+    <title>4D Gaussian Splatting AR Demo V7 - Fixed</title>
     <style>
         * {
             margin: 0;
@@ -16,7 +16,6 @@
             color: white;
             font-family: Arial, sans-serif;
             overflow: hidden;
-            touch-action: none;
         }
         
         #canvas {
@@ -52,7 +51,6 @@
             align-items: center;
             backdrop-filter: blur(10px);
             flex-wrap: wrap;
-            max-width: 90vw;
         }
         
         button {
@@ -63,7 +61,6 @@
             border-radius: 5px;
             cursor: pointer;
             font-size: 11px;
-            white-space: nowrap;
         }
         
         button:hover {
@@ -73,14 +70,6 @@
         button:disabled {
             background: #555;
             cursor: not-allowed;
-        }
-        
-        .ar-btn {
-            background: #ff6b35;
-        }
-        
-        .ar-btn:hover {
-            background: #ff8c42;
         }
         
         #progress {
@@ -140,29 +129,6 @@
             color: #aaa;
             margin-top: 5px;
         }
-        
-        .controls-row {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        @media (max-width: 768px) {
-            #controls {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            
-            .controls-row {
-                justify-content: center;
-            }
-            
-            button {
-                flex: 1;
-                min-width: 60px;
-            }
-        }
     </style>
 </head>
 <body>
@@ -170,315 +136,341 @@
     
     <div id="loading">
         <div class="spinner"></div>
-        <div id="load-text">Loading gsplat.js...</div>
+        <div id="load-text">Loading...</div>
         <div id="load-progress">0/400</div>
     </div>
     
     <div id="ui">
-        <div><strong>🎯 4D Gaussian Splatting AR</strong></div>
-        <div>Status: <span id="status" class="status">Loading...</span></div>
+        <div><strong>4D Gaussian Splatting V7</strong></div>
+        <div>Status: <span id="status" class="status">Loading Three.js...</span></div>
         <div>Frames: <span id="frame-count">0</span>/400</div>
-        <div>Current: Frame <span id="current-frame">0</span></div>
+        <div>Current: <span id="current-frame">0</span></div>
         <div>Time: <span id="time-display">00:00/16:00</span></div>
-        <div class="info">gsplat.js powered Gaussian Splatting</div>
-        <div class="info">Proper PLY Gaussian rendering</div>
+        <div class="info">Click buttons to test functionality</div>
     </div>
     
     <div id="controls">
-        <div class="controls-row">
-            <button id="load-btn">Load PLY Sequence</button>
-            <button id="play-btn" disabled>Play</button>
-            <button id="pause-btn" disabled>Pause</button>
-            <button id="reset-btn" disabled>Reset</button>
+        <button id="load-btn" disabled>Load PLY Data</button>
+        <button id="play-btn" disabled>Play</button>
+        <button id="pause-btn" disabled>Pause</button>
+        <button id="reset-btn" disabled>Reset</button>
+        <div id="progress">
+            <div id="progress-fill"></div>
         </div>
-        <div class="controls-row">
-            <div id="progress">
-                <div id="progress-fill"></div>
-            </div>
-            <span id="fps-display">25fps</span>
-        </div>
+        <span>25fps</span>
     </div>
 
-    <script type="module">
-        console.log('🚀 Starting gsplat.js AR Demo V6');
+    <!-- Load Three.js with regular script tags first -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/controls/OrbitControls.js"></script>
+    
+    <script>
+        console.log('🚀 Starting Three.js AR Demo V7');
+        console.log('Three.js version:', THREE.REVISION);
         
-        // Import gsplat.js from CDN
-        const SPLAT = await import('https://unpkg.com/gsplat@latest/dist/gsplat.module.js');
-        console.log('✅ gsplat.js loaded successfully');
-        
-        class GsplatARDemo {
+        class WorkingDemo {
             constructor() {
-                console.log('Initializing Gsplat AR Demo...');
+                console.log('✅ Initializing Working Demo...');
                 
-                // Core gsplat.js components
-                this.canvas = document.getElementById('canvas');
-                this.renderer = new SPLAT.WebGLRenderer(this.canvas);
-                this.scene = new SPLAT.Scene();
-                this.camera = new SPLAT.Camera();
-                this.controls = new SPLAT.OrbitControls(this.camera, this.canvas);
+                // Scene setup with Three.js globals
+                this.scene = new THREE.Scene();
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                this.renderer = new THREE.WebGLRenderer({ 
+                    canvas: document.getElementById('canvas'),
+                    antialias: true
+                });
                 
-                // Sequence data
-                this.frames = []; // Array of loaded PLY splat objects
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                
+                // Controls
+                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.camera.position.set(0, 1, 3);
+                
+                // Lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+                
+                // Data
+                this.frames = [];
                 this.currentTime = 0;
-                this.totalTime = 16.0; // 16 seconds
+                this.totalTime = 16.0;
                 this.fps = 25;
                 this.isPlaying = false;
                 this.isLoading = false;
-                this.currentFrameIndex = 0;
                 
-                // PLY URLs
+                // GitHub data
                 this.baseUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/';
-                this.totalFrames = 400;
                 
                 this.setupUI();
-                this.setupRenderer();
                 this.startRenderLoop();
                 
-                this.setStatus('Ready - Click Load PLY Sequence');
-                document.getElementById('load-btn').disabled = false;
-                this.hideLoading();
+                this.setStatus('Ready - Click Load PLY Data');
+                this.enableButton('load-btn');
                 
-                console.log('✅ Gsplat AR Demo initialized');
-            }
-            
-            setupRenderer() {
-                // Set up the renderer size
-                this.handleResize();
-                window.addEventListener('resize', () => this.handleResize());
-                
-                // Set initial camera position
-                this.camera.position.set(0, 1, 3);
-                this.controls.update();
-            }
-            
-            handleResize() {
-                this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+                console.log('✅ Working Demo initialized successfully');
             }
             
             setupUI() {
-                document.getElementById('load-btn').onclick = () => this.loadSequence();
-                document.getElementById('play-btn').onclick = () => this.play();
-                document.getElementById('pause-btn').onclick = () => this.pause();
-                document.getElementById('reset-btn').onclick = () => this.reset();
-                
-                // File drop support
-                document.addEventListener('dragover', (e) => {
-                    e.preventDefault();
+                // Button event listeners
+                document.getElementById('load-btn').addEventListener('click', () => {
+                    console.log('🔵 Load button clicked');
+                    this.testButtonClick('Load');
+                    this.loadData();
                 });
                 
-                document.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    if (e.dataTransfer?.files.length > 0) {
-                        this.loadFromFiles(e.dataTransfer.files);
-                    }
+                document.getElementById('play-btn').addEventListener('click', () => {
+                    console.log('▶️ Play button clicked');
+                    this.testButtonClick('Play');
+                    this.play();
                 });
+                
+                document.getElementById('pause-btn').addEventListener('click', () => {
+                    console.log('⏸️ Pause button clicked');
+                    this.testButtonClick('Pause');
+                    this.pause();
+                });
+                
+                document.getElementById('reset-btn').addEventListener('click', () => {
+                    console.log('⏪ Reset button clicked');
+                    this.testButtonClick('Reset');
+                    this.reset();
+                });
+                
+                // Window resize
+                window.addEventListener('resize', () => {
+                    this.camera.aspect = window.innerWidth / window.innerHeight;
+                    this.camera.updateProjectionMatrix();
+                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+                
+                console.log('✅ UI setup complete');
             }
             
-            async loadSequence() {
+            testButtonClick(buttonName) {
+                this.setStatus(`${buttonName} button working! ✅`);
+                console.log(`✅ ${buttonName} button functionality confirmed`);
+            }
+            
+            async loadData() {
                 if (this.isLoading) return;
                 
                 this.isLoading = true;
                 this.showLoading();
-                this.setStatus('Loading PLY sequence from GitHub...');
-                document.getElementById('load-btn').disabled = true;
+                this.setStatus('Loading PLY files from GitHub...');
+                this.disableButton('load-btn');
                 
-                console.log(`🔄 Starting to load ${this.totalFrames} PLY files...`);
+                console.log('📁 Starting to load PLY sequence...');
                 
                 try {
                     this.frames = [];
                     let loadedCount = 0;
+                    const maxFrames = 50; // Load first 50 frames for demo
                     
-                    // Load PLY files sequentially for better memory management
-                    for (let i = 1; i <= this.totalFrames; i++) {
+                    for (let i = 1; i <= maxFrames; i++) {
                         const frameNum = i.toString().padStart(6, '0');
                         const url = `${this.baseUrl}compressed_frame_${frameNum}.ply`;
                         
-                        document.getElementById('load-progress').textContent = `${i}/${this.totalFrames}`;
+                        document.getElementById('load-progress').textContent = `${i}/${maxFrames}`;
                         document.getElementById('load-text').textContent = `Loading frame ${i}...`;
                         
                         try {
-                            console.log(`📁 Loading frame ${i}: ${url}`);
+                            console.log(`📄 Loading frame ${i}: ${url}`);
                             
-                            // Create a temporary scene for this frame
-                            const tempScene = new SPLAT.Scene();
+                            const response = await fetch(url);
+                            if (!response.ok) {
+                                if (i === 1) {
+                                    throw new Error(`Cannot access GitHub data: ${response.status}`);
+                                }
+                                console.log(`⏹️ Stopped at frame ${i}: ${response.status}`);
+                                break;
+                            }
                             
-                            // Load PLY directly using gsplat.js PLYLoader
-                            await this.loadPLYFromURL(url, tempScene);
+                            const arrayBuffer = await response.arrayBuffer();
+                            const points = await this.parsePLY(arrayBuffer);
                             
-                            // Store the loaded splat object
-                            if (tempScene.objects.length > 0) {
+                            if (points && points.length > 0) {
                                 this.frames.push({
                                     index: i - 1,
-                                    timestamp: (i - 1) / (this.totalFrames - 1) * this.totalTime,
-                                    splat: tempScene.objects[0] // The loaded splat object
+                                    timestamp: (i - 1) / (maxFrames - 1) * this.totalTime,
+                                    points: points
                                 });
                                 loadedCount++;
                                 
-                                // Show first frame immediately
+                                // Show first frame
                                 if (i === 1) {
                                     this.showFrame(0);
                                 }
                                 
-                                console.log(`✅ Frame ${i} loaded (${tempScene.objects[0].data.vertexCount} gaussians)`);
-                            } else {
-                                console.warn(`⚠️ Frame ${i} loaded but has no objects`);
+                                console.log(`✅ Frame ${i} loaded: ${points.length} points`);
                             }
                             
-                            // Update UI every 25 frames
-                            if (i % 25 === 0) {
+                            // Update UI
+                            if (i % 10 === 0) {
                                 document.getElementById('frame-count').textContent = loadedCount;
-                                this.updateTimeDisplay();
                                 await new Promise(resolve => setTimeout(resolve, 1));
                             }
                             
                         } catch (error) {
-                            if (i === 1) {
-                                throw new Error(`Cannot load first frame: ${error.message}`);
-                            }
-                            console.log(`⏹️ Stopped at frame ${i}: ${error.message}`);
+                            if (i === 1) throw error;
+                            console.log(`❌ Frame ${i} failed: ${error.message}`);
                             break;
                         }
                     }
                     
                     if (this.frames.length === 0) {
-                        throw new Error('No PLY frames loaded successfully');
+                        throw new Error('No frames loaded');
                     }
                     
-                    console.log(`🎉 Successfully loaded ${this.frames.length} PLY frames`);
+                    console.log(`🎉 Successfully loaded ${this.frames.length} frames`);
                     
                     document.getElementById('frame-count').textContent = this.frames.length;
-                    this.setStatus(`Loaded ${this.frames.length} PLY frames - Ready to play`);
+                    this.setStatus(`Loaded ${this.frames.length} PLY frames - Ready!`);
                     
-                    // Enable controls
-                    document.getElementById('play-btn').disabled = false;
-                    document.getElementById('pause-btn').disabled = true;
-                    document.getElementById('reset-btn').disabled = false;
+                    // Enable playback controls
+                    this.enableButton('play-btn');
+                    this.enableButton('reset-btn');
                     
                 } catch (error) {
                     console.error('❌ Loading failed:', error);
                     this.setStatus(`Error: ${error.message}`, true);
                 } finally {
                     this.hideLoading();
-                    document.getElementById('load-btn').disabled = false;
+                    this.enableButton('load-btn');
                     this.isLoading = false;
                 }
             }
             
-            async loadPLYFromURL(url, targetScene) {
-                // Fetch the PLY file
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                // Convert to blob for gsplat.js loader
-                const blob = await response.blob();
-                const file = new File([blob], 'frame.ply', { type: 'application/octet-stream' });
-                
-                // Use gsplat.js PLYLoader
-                await SPLAT.PLYLoader.LoadFromFileAsync(
-                    file,
-                    targetScene,
-                    (progress) => {
-                        // Progress callback - optional
-                    },
-                    "" // format - empty for default
-                );
-            }
-            
-            async loadFromFiles(files) {
-                const plyFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.ply'));
-                if (plyFiles.length === 0) {
-                    this.setStatus('No PLY files found in selection', true);
-                    return;
-                }
-                
-                this.showLoading();
-                this.setStatus(`Loading ${plyFiles.length} PLY files...`);
+            async parsePLY(arrayBuffer) {
+                console.log(`🔍 Parsing PLY file (${arrayBuffer.byteLength} bytes)`);
                 
                 try {
-                    this.frames = [];
+                    // Read header
+                    const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
+                    const headerText = new TextDecoder().decode(headerView);
                     
-                    for (let i = 0; i < plyFiles.length; i++) {
-                        const file = plyFiles[i];
-                        document.getElementById('load-progress').textContent = `${i+1}/${plyFiles.length}`;
-                        document.getElementById('load-text').textContent = `Loading ${file.name}...`;
-                        
-                        const tempScene = new SPLAT.Scene();
-                        await SPLAT.PLYLoader.LoadFromFileAsync(file, tempScene);
-                        
-                        if (tempScene.objects.length > 0) {
-                            this.frames.push({
-                                index: i,
-                                timestamp: i / (plyFiles.length - 1) * this.totalTime,
-                                splat: tempScene.objects[0]
-                            });
+                    const endIndex = headerText.indexOf('end_header\n');
+                    if (endIndex === -1) throw new Error('Invalid PLY format');
+                    
+                    const headerEndByte = endIndex + 11;
+                    const lines = headerText.substring(0, endIndex).split('\n');
+                    
+                    let vertexCount = 0;
+                    const properties = [];
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('element vertex ')) {
+                            vertexCount = parseInt(line.split(' ')[2]);
+                        } else if (line.startsWith('property float ')) {
+                            properties.push(line.split(' ')[2]);
                         }
                     }
                     
-                    if (this.frames.length > 0) {
-                        this.showFrame(0);
-                        document.getElementById('frame-count').textContent = this.frames.length;
-                        document.getElementById('play-btn').disabled = false;
-                        document.getElementById('reset-btn').disabled = false;
-                        this.setStatus(`Loaded ${this.frames.length} PLY files`);
+                    if (vertexCount === 0) return [];
+                    
+                    console.log(`📊 PLY has ${vertexCount} vertices, ${properties.length} properties`);
+                    
+                    // Read binary data
+                    const dataView = new DataView(arrayBuffer, headerEndByte);
+                    const points = [];
+                    const bytesPerVertex = properties.length * 4;
+                    
+                    // Sample points for performance (max 5000 points per frame)
+                    const maxPoints = 5000;
+                    const step = Math.max(1, Math.floor(vertexCount / maxPoints));
+                    
+                    for (let i = 0; i < vertexCount; i += step) {
+                        const offset = i * bytesPerVertex;
+                        if (offset + bytesPerVertex > dataView.byteLength) break;
+                        
+                        const point = { 
+                            position: [0, 0, 0], 
+                            color: [1, 1, 1], 
+                            opacity: 1 
+                        };
+                        
+                        for (let j = 0; j < properties.length; j++) {
+                            const value = dataView.getFloat32(offset + j * 4, true);
+                            const prop = properties[j];
+                            
+                            if (prop === 'x') point.position[0] = value;
+                            else if (prop === 'y') point.position[1] = value;
+                            else if (prop === 'z') point.position[2] = value;
+                            else if (prop === 'f_dc_0') point.color[0] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'f_dc_1') point.color[1] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'f_dc_2') point.color[2] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'opacity') {
+                                point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
+                            }
+                        }
+                        
+                        points.push(point);
                     }
                     
+                    console.log(`✅ Parsed ${points.length} points from PLY`);
+                    return points;
+                    
                 } catch (error) {
-                    console.error('File loading failed:', error);
-                    this.setStatus(`Error: ${error.message}`, true);
-                } finally {
-                    this.hideLoading();
+                    console.error('❌ PLY parsing error:', error);
+                    return [];
                 }
             }
             
             showFrame(frameIndex) {
                 if (frameIndex < 0 || frameIndex >= this.frames.length) return;
                 
-                // Clear current scene
-                this.scene.reset();
+                // Clear existing objects
+                while (this.scene.children.length > 1) { // Keep lighting
+                    this.scene.remove(this.scene.children[1]);
+                }
                 
-                // Add the frame's splat to the scene
                 const frame = this.frames[frameIndex];
-                this.scene.addObject(frame.splat);
+                const group = new THREE.Group();
                 
-                this.currentFrameIndex = frameIndex;
+                // Create point cloud
+                for (const point of frame.points) {
+                    const geometry = new THREE.SphereGeometry(0.01, 4, 3);
+                    const material = new THREE.MeshBasicMaterial({
+                        color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
+                        transparent: true,
+                        opacity: point.opacity
+                    });
+                    
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
+                    group.add(mesh);
+                }
+                
+                this.scene.add(group);
                 document.getElementById('current-frame').textContent = frameIndex;
-            }
-            
-            getCurrentFrameIndex() {
-                if (this.frames.length === 0) return 0;
                 
-                // Calculate which frame should be showing based on current time
-                const progress = this.currentTime / this.totalTime;
-                const frameIndex = Math.floor(progress * (this.frames.length - 1));
-                return Math.max(0, Math.min(frameIndex, this.frames.length - 1));
+                console.log(`🖼️ Showing frame ${frameIndex} with ${frame.points.length} points`);
             }
             
             play() {
-                if (this.frames.length === 0) return;
+                if (this.frames.length === 0) {
+                    this.setStatus('Load PLY data first!', true);
+                    return;
+                }
                 
                 this.isPlaying = true;
-                document.getElementById('play-btn').disabled = true;
-                document.getElementById('pause-btn').disabled = false;
-                this.setStatus('Playing 4D Gaussian Splatting sequence');
-                console.log('▶️ Playing sequence');
+                this.disableButton('play-btn');
+                this.enableButton('pause-btn');
+                this.setStatus('Playing sequence');
             }
             
             pause() {
                 this.isPlaying = false;
-                document.getElementById('play-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
+                this.enableButton('play-btn');
+                this.disableButton('pause-btn');
                 this.setStatus('Paused');
-                console.log('⏸️ Paused');
             }
             
             reset() {
                 this.isPlaying = false;
                 this.currentTime = 0;
-                document.getElementById('play-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
+                this.enableButton('play-btn');
+                this.disableButton('pause-btn');
                 
                 if (this.frames.length > 0) {
                     this.showFrame(0);
@@ -486,18 +478,14 @@
                 
                 this.updateTimeDisplay();
                 this.setStatus('Reset to beginning');
-                console.log('⏪ Reset');
             }
             
             updateTimeDisplay() {
                 const minutes = Math.floor(this.currentTime / 60);
                 const seconds = Math.floor(this.currentTime % 60);
-                const totalMinutes = Math.floor(this.totalTime / 60);
-                const totalSeconds = Math.floor(this.totalTime % 60);
                 
                 document.getElementById('time-display').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}/` +
-                    `${totalMinutes.toString().padStart(2, '0')}:${totalSeconds.toString().padStart(2, '0')}`;
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}/16:00`;
                 
                 const progress = (this.currentTime / this.totalTime) * 100;
                 document.getElementById('progress-fill').style.width = `${progress}%`;
@@ -507,22 +495,21 @@
                 const frame = () => {
                     // Update animation
                     if (this.isPlaying && this.frames.length > 0) {
-                        this.currentTime += 1 / 60; // 60fps render loop
+                        this.currentTime += 1 / 60;
                         
                         if (this.currentTime >= this.totalTime) {
-                            this.currentTime = 0; // Loop
+                            this.currentTime = 0;
                         }
                         
-                        // Update to correct frame
-                        const targetFrameIndex = this.getCurrentFrameIndex();
-                        if (targetFrameIndex !== this.currentFrameIndex) {
-                            this.showFrame(targetFrameIndex);
-                        }
+                        // Update frame
+                        const progress = this.currentTime / this.totalTime;
+                        const frameIndex = Math.floor(progress * (this.frames.length - 1));
+                        this.showFrame(frameIndex);
                         
                         this.updateTimeDisplay();
                     }
                     
-                    // Update controls and render
+                    // Render
                     this.controls.update();
                     this.renderer.render(this.scene, this.camera);
                     
@@ -531,6 +518,14 @@
                 
                 requestAnimationFrame(frame);
                 console.log('🔄 Render loop started');
+            }
+            
+            enableButton(id) {
+                document.getElementById(id).disabled = false;
+            }
+            
+            disableButton(id) {
+                document.getElementById(id).disabled = true;
             }
             
             setStatus(message, isError = false) {
@@ -548,16 +543,13 @@
             }
         }
         
-        // Initialize the app
+        // Start the demo
+        console.log('🎬 Creating Working Demo instance...');
         try {
-            console.log('🎬 Creating Gsplat AR Demo instance...');
-            new GsplatARDemo();
-            console.log('🎉 Gsplat AR Demo started successfully!');
+            new WorkingDemo();
+            console.log('🎉 Demo started successfully!');
         } catch (error) {
-            console.error('💥 Failed to start Gsplat AR Demo:', error);
-            document.getElementById('status').textContent = 'Failed to start: ' + error.message;
-            document.getElementById('status').className = 'error';
-            document.getElementById('loading').style.display = 'none';
+            console.error('💥 Demo failed to start:', error);
         }
     </script>
 </body>
