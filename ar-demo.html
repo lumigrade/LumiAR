@@ -358,11 +358,33 @@
     </div>
 
     <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
+        // V2 - Fixed module imports and added comprehensive debugging
+        
+        console.log('Starting module imports...');
+        console.log('Current URL:', window.location.href);
+        console.log('Is HTTPS:', window.location.protocol === 'https:');
+        
+        try {
+            console.log('Importing Three.js...');
+            const THREE = await import('https://unpkg.com/three@0.159.0/build/three.module.js');
+            console.log('Three.js loaded successfully:', THREE.REVISION);
+            
+            console.log('Importing OrbitControls...');
+            const { OrbitControls } = await import('https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js');
+            console.log('OrbitControls loaded successfully');
+            
+            // Make THREE global for the class
+            window.THREE = THREE;
+            window.OrbitControls = OrbitControls;
 
+        
+        // Start the application after successful import
         class ARGaussianSplatting {
             constructor() {
+                console.log('ARGaussianSplatting constructor started');
+                console.log('THREE available:', typeof window.THREE !== 'undefined');
+                console.log('OrbitControls available:', typeof window.OrbitControls !== 'undefined');
+                
                 this.scene = null;
                 this.camera = null;
                 this.renderer = null;
@@ -445,6 +467,9 @@
             }
             
             initScene() {
+                const THREE = window.THREE;
+                const OrbitControls = window.OrbitControls;
+                
                 this.scene = new THREE.Scene();
                 this.scene.background = new THREE.Color(0x000000);
                 
@@ -472,10 +497,11 @@
                 this.createReticle();
                 this.animate();
                 
-                this.debugLog('Scene initialized');
+                this.debugLog(`Scene initialized - Three.js r${THREE.REVISION}`);
             }
             
             createReticle() {
+                const THREE = window.THREE;
                 const geometry = new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2);
                 const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
                 this.reticle = new THREE.Mesh(geometry, material);
@@ -1016,6 +1042,8 @@
             placeContent() {
                 if (!this.keyframes.length || !this.reticle.visible) return;
                 
+                const THREE = window.THREE;
+                
                 if (this.arContent) {
                     this.scene.remove(this.arContent);
                 }
@@ -1040,6 +1068,8 @@
             }
             
             renderPointsToGroup(points, group) {
+                const THREE = window.THREE;
+                
                 // Clear existing content
                 while (group.children.length > 0) {
                     group.remove(group.children[0]);
@@ -1192,6 +1222,8 @@
             }
             
             renderPoints(points) {
+                const THREE = window.THREE;
+                
                 if (this.pointsGroup) {
                     this.scene.remove(this.pointsGroup);
                 }
@@ -1305,7 +1337,21 @@
         }
         
         // Start the application
+        console.log('Creating ARGaussianSplatting instance...');
         new ARGaussianSplatting();
+        console.log('Application started successfully');
+        
+        } catch (error) {
+            console.error('Failed to load modules or start application:', error);
+            document.body.innerHTML = `
+                <div style="color: white; padding: 50px; text-align: center;">
+                    <h2>Loading Error</h2>
+                    <p>Failed to load Three.js modules: ${error.message}</p>
+                    <p>Please make sure you're serving this page from an HTTPS server (GitHub Pages should work).</p>
+                    <p>Current URL: ${window.location.href}</p>
+                </div>
+            `;
+        }
     </script>
 </body>
 </html>
