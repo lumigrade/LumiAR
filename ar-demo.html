@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keyframe AR Demo - Smooth 25fps Playback</title>
+    <title>Keyframe AR Demo - 25fps Playback</title>
     <style>
         body {
             margin: 0;
@@ -29,12 +29,13 @@
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             color: white;
             padding: 15px;
             border-radius: 8px;
             z-index: 100;
             font-size: 14px;
+            max-width: 350px;
         }
 
         #timeline {
@@ -42,7 +43,7 @@
             bottom: 20px;
             left: 20px;
             right: 20px;
-            background: rgba(0, 0, 0, 0.7);
+            background: rgba(0, 0, 0, 0.8);
             padding: 15px;
             border-radius: 8px;
             z-index: 100;
@@ -55,6 +56,7 @@
             border-radius: 4px;
             overflow: hidden;
             margin: 10px 0;
+            cursor: pointer;
         }
 
         #progress-fill {
@@ -69,6 +71,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
         }
 
         button {
@@ -93,6 +96,24 @@
         input[type="range"] {
             flex: 1;
             margin: 0 10px;
+            min-width: 100px;
+        }
+
+        input[type="file"] {
+            color: white;
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 5px;
+            font-size: 11px;
+        }
+
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 5px;
         }
 
         .status {
@@ -105,12 +126,6 @@
             font-weight: bold;
         }
 
-        #keyframe-info {
-            font-size: 12px;
-            color: #aaa;
-            margin-top: 5px;
-        }
-
         .loading {
             position: absolute;
             top: 50%;
@@ -119,6 +134,9 @@
             color: white;
             text-align: center;
             z-index: 200;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
         }
 
         .spinner {
@@ -135,69 +153,84 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .file-info {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .debug {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            max-height: 60px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
     <div id="container">
         <canvas id="canvas"></canvas>
         
-        <div id="loading" class="loading">
+        <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>
-            <div>Loading Keyframe Sequence...</div>
+            <div id="load-message">Loading Keyframes...</div>
             <div id="load-progress">0%</div>
         </div>
 
         <div id="controls">
             <div class="control-group">
-                <label>📁 Keyframe Folder:</label>
+                <label>Files:</label>
                 <input type="file" id="folder-input" webkitdirectory multiple accept=".ply" />
             </div>
             
             <div class="control-group">
-                <span id="status" class="status">Ready</span>
+                <span id="status" class="status">Ready - Select PLY folder</span>
             </div>
             
             <div class="control-group">
-                <label>🎬 Playback:</label>
-                <button id="play-btn">▶️ Play</button>
-                <button id="pause-btn" disabled>⏸️ Pause</button>
-                <button id="reset-btn">⏮️ Reset</button>
+                <button id="play-btn" disabled>Play</button>
+                <button id="pause-btn" disabled>Pause</button>
+                <button id="reset-btn" disabled>Reset</button>
             </div>
             
             <div class="control-group">
-                <label>🔄 Interpolation:</label>
+                <label>Interpolation:</label>
                 <select id="interp-mode">
                     <option value="linear">Linear</option>
                     <option value="smooth">Smooth</option>
-                    <option value="none">None (keyframes only)</option>
+                    <option value="none">Keyframes Only</option>
                 </select>
             </div>
             
             <div class="control-group">
-                <label>⚡ FPS:</label>
+                <label>FPS:</label>
                 <span id="fps-display">25</span>
-                <input type="range" id="fps-slider" min="15" max="60" value="25" />
+                <input type="range" id="fps-slider" min="10" max="60" value="25" style="flex: 1;" />
             </div>
             
             <div class="control-group">
-                <label>🎯 Quality:</label>
-                <input type="range" id="quality-slider" min="0.1" max="2.0" step="0.1" value="1.0" />
+                <label>Quality:</label>
                 <span id="quality-display">1.0x</span>
+                <input type="range" id="quality-slider" min="0.2" max="2.0" step="0.1" value="1.0" style="flex: 1;" />
             </div>
+
+            <div class="file-info">
+                Keyframes: <span id="keyframe-count">0</span> | 
+                Points: <span id="point-count">0</span>
+            </div>
+
+            <div id="debug-info" class="debug"></div>
         </div>
 
         <div id="timeline">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span>🕐 <span id="current-time">00:00</span> / <span id="total-time">16:00</span></span>
-                <span>🎞️ Frame: <span id="current-frame">0</span> / <span id="total-frames">0</span></span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span>Time: <span id="current-time">00:00</span> / <span id="total-time">16:00</span></span>
+                <span>Frame: <span id="current-frame">0</span></span>
             </div>
             <div id="progress-bar">
                 <div id="progress-fill"></div>
-            </div>
-            <div id="keyframe-info">
-                Keyframes loaded: <span id="keyframe-count">0</span> | 
-                Interpolation: <span id="interp-status">Disabled</span> |
-                Next keyframe: <span id="next-keyframe">-</span>
             </div>
         </div>
     </div>
@@ -206,7 +239,7 @@
         import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
         import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
 
-        class KeyframeARDemo {
+        class KeyframePlayer {
             constructor() {
                 this.scene = null;
                 this.camera = null;
@@ -214,70 +247,70 @@
                 this.controls = null;
                 
                 this.keyframes = [];
-                this.keyframeMetadata = null;
                 this.currentTime = 0;
-                this.totalDuration = 16.0; // 16 seconds
+                this.totalDuration = 16.0;
                 this.targetFPS = 25;
                 this.isPlaying = false;
                 this.lastFrameTime = 0;
                 
-                this.currentGaussianGroup = null;
+                this.pointsGroup = null;
                 this.interpolationMode = 'linear';
                 this.qualityScale = 1.0;
                 
-                this.initializeScene();
-                this.setupEventListeners();
-                this.hideLoading();
+                this.debugLog = this.debugLog.bind(this);
+                
+                this.initScene();
+                this.setupControls();
             }
             
-            initializeScene() {
-                // Create scene
+            debugLog(message) {
+                console.log(message);
+                const debugEl = document.getElementById('debug-info');
+                debugEl.innerHTML = message + '<br>' + debugEl.innerHTML;
+                // Keep only last 5 lines
+                const lines = debugEl.innerHTML.split('<br>');
+                if (lines.length > 5) {
+                    debugEl.innerHTML = lines.slice(0, 5).join('<br>');
+                }
+            }
+            
+            initScene() {
+                // Scene setup
                 this.scene = new THREE.Scene();
                 this.scene.background = new THREE.Color(0x000000);
                 
-                // Create camera
-                this.camera = new THREE.PerspectiveCamera(
-                    75,
-                    window.innerWidth / window.innerHeight,
-                    0.01,
-                    1000
-                );
-                this.camera.position.set(0, 2, 5);
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+                this.camera.position.set(0, 1, 3);
                 
-                // Create renderer
+                // Renderer
                 const canvas = document.getElementById('canvas');
-                this.renderer = new THREE.WebGLRenderer({ 
-                    canvas, 
-                    antialias: true,
-                    alpha: true
-                });
+                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 
-                // Create controls
+                // Controls
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
                 this.controls.dampingFactor = 0.05;
                 
                 // Lighting
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 this.scene.add(ambientLight);
-                
-                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-                directionalLight.position.set(10, 10, 5);
-                this.scene.add(directionalLight);
                 
                 // Start render loop
                 this.animate();
+                
+                this.debugLog('Scene initialized');
             }
             
-            setupEventListeners() {
+            setupControls() {
                 // File input
                 document.getElementById('folder-input').addEventListener('change', (e) => {
-                    this.loadKeyframeSequence(e.target.files);
+                    this.loadFiles(e.target.files);
                 });
                 
-                // Playback controls
+                // Playback
                 document.getElementById('play-btn').addEventListener('click', () => this.play());
                 document.getElementById('pause-btn').addEventListener('click', () => this.pause());
                 document.getElementById('reset-btn').addEventListener('click', () => this.reset());
@@ -285,7 +318,7 @@
                 // Settings
                 document.getElementById('interp-mode').addEventListener('change', (e) => {
                     this.interpolationMode = e.target.value;
-                    this.updateInterpolationStatus();
+                    this.debugLog(`Interpolation: ${this.interpolationMode}`);
                 });
                 
                 document.getElementById('fps-slider').addEventListener('input', (e) => {
@@ -296,32 +329,43 @@
                 document.getElementById('quality-slider').addEventListener('input', (e) => {
                     this.qualityScale = parseFloat(e.target.value);
                     document.getElementById('quality-display').textContent = this.qualityScale.toFixed(1) + 'x';
+                    this.updateVisualization();
+                });
+                
+                // Timeline click
+                document.getElementById('progress-bar').addEventListener('click', (e) => {
+                    if (this.keyframes.length > 0) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const progress = clickX / rect.width;
+                        this.currentTime = progress * this.totalDuration;
+                        this.updateVisualization();
+                    }
                 });
                 
                 // Window resize
                 window.addEventListener('resize', () => this.onWindowResize());
             }
             
-            async loadKeyframeSequence(files) {
-                if (!files || files.length === 0) return;
+            async loadFiles(files) {
+                if (!files || files.length === 0) {
+                    this.debugLog('No files selected');
+                    return;
+                }
                 
                 this.showLoading();
-                this.updateStatus('Loading keyframe sequence...');
+                this.updateStatus('Loading files...');
                 
                 try {
-                    // Filter and sort PLY files
+                    // Filter PLY files
                     const plyFiles = Array.from(files)
                         .filter(file => file.name.toLowerCase().endsWith('.ply'))
                         .sort((a, b) => a.name.localeCompare(b.name));
                     
-                    // Look for metadata file
-                    const metadataFile = Array.from(files)
-                        .find(file => file.name.includes('keyframes') && file.name.endsWith('.json'));
+                    this.debugLog(`Found ${plyFiles.length} PLY files`);
                     
-                    if (metadataFile) {
-                        const metadataText = await metadataFile.text();
-                        this.keyframeMetadata = JSON.parse(metadataText);
-                        console.log('Loaded keyframe metadata:', this.keyframeMetadata);
+                    if (plyFiles.length === 0) {
+                        throw new Error('No PLY files found');
                     }
                     
                     this.keyframes = [];
@@ -330,130 +374,143 @@
                         const file = plyFiles[i];
                         
                         // Update progress
-                        const progress = ((i + 1) / plyFiles.length * 100).toFixed(0);
-                        document.getElementById('load-progress').textContent = `${progress}%`;
+                        const progress = ((i + 1) / plyFiles.length * 100);
+                        document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
+                        document.getElementById('load-message').textContent = `Loading ${file.name}...`;
                         
-                        // Load PLY file
-                        const keyframe = await this.loadKeyframePLY(file);
-                        
-                        if (keyframe) {
-                            // Calculate timestamp
-                            let timestamp = i / plyFiles.length * this.totalDuration;
+                        try {
+                            const points = await this.loadPLYFile(file);
                             
-                            // Use metadata timestamps if available
-                            if (this.keyframeMetadata && 
-                                this.keyframeMetadata.keyframe_timestamps && 
-                                i < this.keyframeMetadata.keyframe_timestamps.length) {
-                                timestamp = this.keyframeMetadata.keyframe_timestamps[i];
+                            if (points && points.length > 0) {
+                                const timestamp = (i / (plyFiles.length - 1)) * this.totalDuration;
+                                
+                                this.keyframes.push({
+                                    timestamp: timestamp,
+                                    points: points,
+                                    filename: file.name
+                                });
+                                
+                                this.debugLog(`Loaded ${file.name}: ${points.length} points`);
+                            } else {
+                                this.debugLog(`Warning: ${file.name} has no points`);
                             }
-                            
-                            keyframe.timestamp = timestamp;
-                            this.keyframes.push(keyframe);
+                        } catch (error) {
+                            this.debugLog(`Error loading ${file.name}: ${error.message}`);
                         }
+                        
+                        // Allow UI to update
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                    }
+                    
+                    if (this.keyframes.length === 0) {
+                        throw new Error('No valid keyframes loaded');
                     }
                     
                     this.updateUI();
+                    this.updateVisualization();
                     this.updateStatus(`Loaded ${this.keyframes.length} keyframes`);
                     this.hideLoading();
                     
+                    // Enable controls
+                    document.getElementById('play-btn').disabled = false;
+                    document.getElementById('reset-btn').disabled = false;
+                    
                 } catch (error) {
-                    console.error('Error loading keyframes:', error);
-                    this.updateStatus('Error loading keyframes', true);
+                    this.debugLog(`Loading failed: ${error.message}`);
+                    this.updateStatus(`Error: ${error.message}`, true);
                     this.hideLoading();
                 }
             }
             
-            async loadKeyframePLY(file) {
-                return new Promise((resolve) => {
+            loadPLYFile(file) {
+                return new Promise((resolve, reject) => {
                     const reader = new FileReader();
+                    
                     reader.onload = (e) => {
                         try {
-                            const buffer = e.target.result;
-                            const gaussians = this.parsePLY(buffer);
-                            
-                            if (gaussians && gaussians.length > 0) {
-                                resolve({
-                                    gaussians: gaussians,
-                                    filename: file.name,
-                                    timestamp: 0 // Will be set later
-                                });
-                            } else {
-                                console.warn(`No gaussians found in ${file.name}`);
-                                resolve(null);
-                            }
+                            const arrayBuffer = e.target.result;
+                            const points = this.parsePLY(arrayBuffer);
+                            resolve(points);
                         } catch (error) {
-                            console.error(`Error parsing ${file.name}:`, error);
-                            resolve(null);
+                            reject(error);
                         }
                     };
+                    
+                    reader.onerror = () => reject(new Error('Failed to read file'));
                     reader.readAsArrayBuffer(file);
                 });
             }
             
-            parsePLY(buffer) {
-                const decoder = new TextDecoder();
-                const header = decoder.decode(buffer.slice(0, 1000));
-                
-                const headerEnd = header.indexOf('end_header\n') + 11;
-                const vertexMatch = header.match(/element vertex (\d+)/);
-                
-                if (!vertexMatch) return [];
-                
-                const vertexCount = parseInt(vertexMatch[1]);
-                const binaryData = buffer.slice(headerEnd);
-                
-                // Parse properties from header
-                const properties = [];
-                const lines = header.split('\n');
-                for (const line of lines) {
-                    if (line.startsWith('property float ')) {
-                        properties.push(line.split(' ')[2]);
+            parsePLY(arrayBuffer) {
+                try {
+                    // Convert to text to find header
+                    const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
+                    const headerText = new TextDecoder().decode(headerView);
+                    
+                    const headerEndIndex = headerText.indexOf('end_header\n');
+                    if (headerEndIndex === -1) {
+                        throw new Error('Invalid PLY file - no end_header found');
                     }
-                }
-                
-                const gaussians = [];
-                const bytesPerVertex = properties.length * 4; // 4 bytes per float
-                
-                for (let i = 0; i < vertexCount; i++) {
-                    const offset = i * bytesPerVertex;
                     
-                    if (offset + bytesPerVertex > binaryData.byteLength) break;
+                    const headerEndByte = headerEndIndex + 11; // 'end_header\n'.length
                     
-                    const values = new Float32Array(binaryData, offset, properties.length);
+                    // Parse header
+                    const header = headerText.substring(0, headerEndIndex);
+                    const lines = header.split('\n');
                     
-                    const gaussian = this.parseGaussianData(values, properties);
-                    if (gaussian) {
-                        gaussians.push(gaussian);
+                    let vertexCount = 0;
+                    const properties = [];
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('element vertex ')) {
+                            vertexCount = parseInt(line.split(' ')[2]);
+                        } else if (line.startsWith('property float ')) {
+                            properties.push(line.split(' ')[2]);
+                        }
                     }
-                }
-                
-                return gaussians;
-            }
-            
-            parseGaussianData(values, properties) {
-                const gaussian = {
-                    position: [0, 0, 0],
-                    color: [1, 1, 1],
-                    opacity: 1,
-                    scale: [1, 1, 1]
-                };
-                
-                for (let i = 0; i < properties.length; i++) {
-                    const prop = properties[i];
-                    const value = values[i];
                     
-                    if (prop === 'x') gaussian.position[0] = value;
-                    else if (prop === 'y') gaussian.position[1] = value;
-                    else if (prop === 'z') gaussian.position[2] = value;
-                    else if (prop === 'f_dc_0') gaussian.color[0] = value + 0.5;
-                    else if (prop === 'f_dc_1') gaussian.color[1] = value + 0.5;
-                    else if (prop === 'f_dc_2') gaussian.color[2] = value + 0.5;
-                    else if (prop === 'opacity') {
-                        gaussian.opacity = 1.0 / (1.0 + Math.exp(-value));
+                    if (vertexCount === 0) {
+                        throw new Error('No vertices found in PLY file');
                     }
+                    
+                    // Read binary data
+                    const dataView = new DataView(arrayBuffer, headerEndByte);
+                    const points = [];
+                    const bytesPerVertex = properties.length * 4; // 4 bytes per float
+                    
+                    for (let i = 0; i < vertexCount; i++) {
+                        const offset = i * bytesPerVertex;
+                        
+                        if (offset + bytesPerVertex > dataView.byteLength) {
+                            break;
+                        }
+                        
+                        const point = { position: [0, 0, 0], color: [1, 1, 1], opacity: 1 };
+                        
+                        for (let j = 0; j < properties.length; j++) {
+                            const propOffset = offset + j * 4;
+                            const value = dataView.getFloat32(propOffset, true); // little endian
+                            const propName = properties[j];
+                            
+                            if (propName === 'x') point.position[0] = value;
+                            else if (propName === 'y') point.position[1] = value;
+                            else if (propName === 'z') point.position[2] = value;
+                            else if (propName === 'f_dc_0') point.color[0] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'f_dc_1') point.color[1] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'f_dc_2') point.color[2] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'opacity') {
+                                point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
+                            }
+                        }
+                        
+                        points.push(point);
+                    }
+                    
+                    return points;
+                    
+                } catch (error) {
+                    throw new Error(`PLY parsing failed: ${error.message}`);
                 }
-                
-                return gaussian;
             }
             
             play() {
@@ -476,103 +533,92 @@
                 this.currentTime = 0;
                 document.getElementById('play-btn').disabled = false;
                 document.getElementById('pause-btn').disabled = true;
-                this.updateTimeDisplay();
+                this.updateVisualization();
                 this.updateStatus('Reset');
             }
             
-            updateFrame() {
-                if (!this.keyframes || this.keyframes.length === 0) return;
+            updateVisualization() {
+                if (this.keyframes.length === 0) return;
+                
+                let points;
                 
                 if (this.interpolationMode === 'none') {
-                    // Show nearest keyframe only
-                    this.showNearestKeyframe();
+                    // Show nearest keyframe
+                    points = this.getNearestKeyframe().points;
                 } else {
                     // Interpolate between keyframes
-                    this.interpolateKeyframes();
+                    points = this.getInterpolatedPoints();
                 }
+                
+                this.renderPoints(points);
+                this.updateTimeDisplay();
             }
             
-            showNearestKeyframe() {
-                let nearestKeyframe = this.keyframes[0];
-                let minTimeDiff = Math.abs(this.currentTime - nearestKeyframe.timestamp);
+            getNearestKeyframe() {
+                let nearest = this.keyframes[0];
+                let minDiff = Math.abs(this.currentTime - nearest.timestamp);
                 
                 for (const keyframe of this.keyframes) {
-                    const timeDiff = Math.abs(this.currentTime - keyframe.timestamp);
-                    if (timeDiff < minTimeDiff) {
-                        minTimeDiff = timeDiff;
-                        nearestKeyframe = keyframe;
+                    const diff = Math.abs(this.currentTime - keyframe.timestamp);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = keyframe;
                     }
                 }
                 
-                this.renderGaussians(nearestKeyframe.gaussians);
+                return nearest;
             }
             
-            interpolateKeyframes() {
+            getInterpolatedPoints() {
                 // Find surrounding keyframes
-                let prevKeyframe = null;
-                let nextKeyframe = null;
+                let prev = null, next = null;
                 
                 for (let i = 0; i < this.keyframes.length - 1; i++) {
                     if (this.currentTime >= this.keyframes[i].timestamp && 
                         this.currentTime <= this.keyframes[i + 1].timestamp) {
-                        prevKeyframe = this.keyframes[i];
-                        nextKeyframe = this.keyframes[i + 1];
+                        prev = this.keyframes[i];
+                        next = this.keyframes[i + 1];
                         break;
                     }
                 }
                 
-                if (!prevKeyframe || !nextKeyframe) {
-                    // Before first or after last keyframe
+                if (!prev || !next) {
+                    // Before first or after last
                     if (this.currentTime < this.keyframes[0].timestamp) {
-                        this.renderGaussians(this.keyframes[0].gaussians);
+                        return this.keyframes[0].points;
                     } else {
-                        this.renderGaussians(this.keyframes[this.keyframes.length - 1].gaussians);
+                        return this.keyframes[this.keyframes.length - 1].points;
                     }
-                    return;
                 }
                 
-                // Calculate interpolation factor
-                const timeDiff = nextKeyframe.timestamp - prevKeyframe.timestamp;
-                const t = (this.currentTime - prevKeyframe.timestamp) / timeDiff;
+                // Interpolate
+                const timeDiff = next.timestamp - prev.timestamp;
+                const t = timeDiff > 0 ? (this.currentTime - prev.timestamp) / timeDiff : 0;
+                const smoothT = this.interpolationMode === 'smooth' ? this.smoothstep(t) : t;
                 
-                // Interpolate gaussians
-                const interpolatedGaussians = this.interpolateGaussianArrays(
-                    prevKeyframe.gaussians, 
-                    nextKeyframe.gaussians, 
-                    t
-                );
-                
-                this.renderGaussians(interpolatedGaussians);
+                return this.interpolatePoints(prev.points, next.points, smoothT);
             }
             
-            interpolateGaussianArrays(gaussians1, gaussians2, t) {
-                const count = Math.min(gaussians1.length, gaussians2.length);
+            interpolatePoints(points1, points2, t) {
+                const count = Math.min(points1.length, points2.length);
                 const interpolated = [];
                 
                 for (let i = 0; i < count; i++) {
-                    const g1 = gaussians1[i];
-                    const g2 = gaussians2[i];
-                    
-                    const smoothT = this.interpolationMode === 'smooth' ? 
-                        this.smoothstep(t) : t;
+                    const p1 = points1[i];
+                    const p2 = points2[i];
                     
                     interpolated.push({
                         position: [
-                            this.lerp(g1.position[0], g2.position[0], smoothT),
-                            this.lerp(g1.position[1], g2.position[1], smoothT),
-                            this.lerp(g1.position[2], g2.position[2], smoothT)
+                            this.lerp(p1.position[0], p2.position[0], t),
+                            this.lerp(p1.position[1], p2.position[1], t),
+                            this.lerp(p1.position[2], p2.position[2], t)
                         ],
                         color: [
-                            this.lerp(g1.color[0], g2.color[0], smoothT),
-                            this.lerp(g1.color[1], g2.color[1], smoothT),
-                            this.lerp(g1.color[2], g2.color[2], smoothT)
+                            this.lerp(p1.color[0], p2.color[0], t),
+                            this.lerp(p1.color[1], p2.color[1], t),
+                            this.lerp(p1.color[2], p2.color[2], t)
                         ],
-                        opacity: this.lerp(g1.opacity, g2.opacity, smoothT),
-                        scale: [
-                            this.lerp(g1.scale[0], g2.scale[0], smoothT),
-                            this.lerp(g1.scale[1], g2.scale[1], smoothT),
-                            this.lerp(g1.scale[2], g2.scale[2], smoothT)
-                        ]
+                        opacity: this.lerp(p1.opacity, p2.opacity, t)
                     });
                 }
                 
@@ -587,99 +633,81 @@
                 return t * t * (3 - 2 * t);
             }
             
-            renderGaussians(gaussians) {
-                // Clear previous gaussians
-                if (this.currentGaussianGroup) {
-                    this.scene.remove(this.currentGaussianGroup);
+            renderPoints(points) {
+                // Remove previous points
+                if (this.pointsGroup) {
+                    this.scene.remove(this.pointsGroup);
                 }
                 
-                this.currentGaussianGroup = new THREE.Group();
+                this.pointsGroup = new THREE.Group();
                 
-                // Sample gaussians for performance
-                const sampleCount = Math.floor(gaussians.length * this.qualityScale);
-                const step = Math.max(1, Math.floor(gaussians.length / sampleCount));
+                // Sample points based on quality
+                const sampleCount = Math.floor(points.length * this.qualityScale);
+                const step = Math.max(1, Math.floor(points.length / sampleCount));
                 
-                for (let i = 0; i < gaussians.length; i += step) {
-                    const gaussian = gaussians[i];
+                for (let i = 0; i < points.length; i += step) {
+                    const point = points[i];
                     
-                    // Create point
-                    const geometry = new THREE.SphereGeometry(0.02, 8, 6);
+                    // Create sphere for each point
+                    const geometry = new THREE.SphereGeometry(0.02, 6, 4);
                     const material = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color(
-                            Math.max(0, Math.min(1, gaussian.color[0])),
-                            Math.max(0, Math.min(1, gaussian.color[1])),
-                            Math.max(0, Math.min(1, gaussian.color[2]))
-                        ),
+                        color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
                         transparent: true,
-                        opacity: Math.max(0.1, Math.min(1, gaussian.opacity))
+                        opacity: point.opacity
                     });
                     
                     const mesh = new THREE.Mesh(geometry, material);
-                    mesh.position.set(
-                        gaussian.position[0],
-                        gaussian.position[1],
-                        gaussian.position[2]
-                    );
+                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
                     
-                    this.currentGaussianGroup.add(mesh);
+                    this.pointsGroup.add(mesh);
                 }
                 
-                this.scene.add(this.currentGaussianGroup);
+                this.scene.add(this.pointsGroup);
+                
+                // Update point count display
+                document.getElementById('point-count').textContent = this.pointsGroup.children.length;
             }
             
             animate() {
                 requestAnimationFrame(() => this.animate());
                 
                 const now = performance.now();
-                const deltaTime = (now - this.lastFrameTime) / 1000; // Convert to seconds
+                const deltaTime = (now - this.lastFrameTime) / 1000;
                 
                 if (this.isPlaying && this.keyframes.length > 0) {
-                    // Update time based on target FPS
                     this.currentTime += deltaTime;
                     
-                    // Loop back to start if we've reached the end
                     if (this.currentTime >= this.totalDuration) {
-                        this.currentTime = 0;
+                        this.currentTime = 0; // Loop
                     }
                     
-                    this.updateFrame();
-                    this.updateTimeDisplay();
+                    this.updateVisualization();
                 }
                 
                 this.lastFrameTime = now;
-                
                 this.controls.update();
                 this.renderer.render(this.scene, this.camera);
             }
             
             updateTimeDisplay() {
-                const currentMinutes = Math.floor(this.currentTime / 60);
-                const currentSeconds = Math.floor(this.currentTime % 60);
-                const totalMinutes = Math.floor(this.totalDuration / 60);
-                const totalSecondsNum = Math.floor(this.totalDuration % 60);
+                const minutes = Math.floor(this.currentTime / 60);
+                const seconds = Math.floor(this.currentTime % 60);
                 
                 document.getElementById('current-time').textContent = 
-                    `${currentMinutes.toString().padStart(2, '0')}:${currentSeconds.toString().padStart(2, '0')}`;
-                document.getElementById('total-time').textContent = 
-                    `${totalMinutes.toString().padStart(2, '0')}:${totalSecondsNum.toString().padStart(2, '0')}`;
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                 
                 const progress = (this.currentTime / this.totalDuration) * 100;
                 document.getElementById('progress-fill').style.width = `${progress}%`;
                 
-                const currentFrame = Math.floor((this.currentTime / this.totalDuration) * (this.keyframes.length || 1));
-                document.getElementById('current-frame').textContent = currentFrame;
+                const frameNumber = Math.floor((this.currentTime / this.totalDuration) * (this.keyframes.length || 1));
+                document.getElementById('current-frame').textContent = frameNumber;
             }
             
             updateUI() {
                 document.getElementById('keyframe-count').textContent = this.keyframes.length;
-                document.getElementById('total-frames').textContent = this.keyframes.length;
-                this.updateInterpolationStatus();
-            }
-            
-            updateInterpolationStatus() {
-                const status = this.interpolationMode === 'none' ? 'Disabled' : 
-                              this.interpolationMode === 'linear' ? 'Linear' : 'Smooth';
-                document.getElementById('interp-status').textContent = status;
+                
+                const totalPoints = this.keyframes.reduce((sum, kf) => sum + kf.points.length, 0);
+                document.getElementById('point-count').textContent = totalPoints;
             }
             
             updateStatus(message, isError = false) {
@@ -703,10 +731,8 @@
             }
         }
         
-        // Initialize the demo
-        window.addEventListener('DOMContentLoaded', () => {
-            new KeyframeARDemo();
-        });
+        // Start the application
+        new KeyframePlayer();
     </script>
 </body>
 </html>
