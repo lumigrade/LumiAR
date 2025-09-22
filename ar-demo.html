@@ -169,18 +169,9 @@
         <button id="exit-ar-btn" class="ar-btn" style="display:none;">Exit AR</button>
     </div>
 
-    <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
-            "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js"
-        }
-    }
-    </script>
-    
     <script type="module">
-        import * as THREE from 'three';
-        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+        import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
         
         console.log('Three.js loaded:', THREE.REVISION);
         
