@@ -3,302 +3,461 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple PLY Upload Test V10</title>
+    <title>Keyframe AR Demo - 25fps Playback</title>
     <style>
-        * {
+        body {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            background: #111;
-            color: white;
+            background: #000;
             font-family: Arial, sans-serif;
             overflow: hidden;
         }
-        
-        #canvas {
-            display: block;
+
+        #container {
+            position: relative;
             width: 100vw;
             height: 100vh;
         }
-        
-        #ui {
-            position: fixed;
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #controls {
+            position: absolute;
             top: 10px;
             left: 10px;
-            z-index: 1000;
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        
-        #controls {
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 1000;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
             padding: 15px;
             border-radius: 8px;
-            display: flex;
-            gap: 15px;
-            align-items: center;
+            z-index: 100;
+            font-size: 14px;
+            max-width: 350px;
         }
-        
+
+        #timeline {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 100;
+        }
+
+        #progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        #progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #0088ff);
+            width: 0%;
+            transition: width 0.1s ease;
+        }
+
+        .control-group {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
         button {
             background: #007acc;
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 8px 16px;
+            border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
         }
-        
+
         button:hover {
             background: #0099ff;
         }
-        
+
         button:disabled {
             background: #555;
             cursor: not-allowed;
         }
-        
+
+        input[type="range"] {
+            flex: 1;
+            margin: 0 10px;
+            min-width: 100px;
+        }
+
         input[type="file"] {
             color: white;
             background: #333;
             border: 1px solid #555;
-            padding: 8px;
             border-radius: 4px;
+            padding: 5px;
+            font-size: 11px;
         }
-        
-        .upload-area {
-            border: 2px dashed #666;
-            padding: 20px;
-            text-align: center;
-            border-radius: 8px;
-            margin: 10px 0;
+
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 5px;
         }
-        
-        .upload-area.dragover {
-            border-color: #007acc;
-            background: rgba(0, 122, 204, 0.1);
-        }
-        
+
         .status {
             color: #00ff88;
+            font-weight: bold;
         }
-        
+
         .error {
             color: #ff4444;
+            font-weight: bold;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            text-align: center;
+            z-index: 200;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 10px;
+        }
+
+        .spinner {
+            border: 3px solid #333;
+            border-top: 3px solid #00ff88;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .file-info {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .debug {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            max-height: 60px;
+            overflow-y: auto;
         }
     </style>
 </head>
 <body>
-    <canvas id="canvas"></canvas>
-    
-    <div id="ui">
-        <h3>Simple PLY Test V10</h3>
-        <div>Status: <span id="status" class="status">Ready</span></div>
-        <div>Files: <span id="file-count">0</span></div>
-        <div>Points: <span id="point-count">0</span></div>
+    <div id="container">
+        <canvas id="canvas"></canvas>
         
-        <div class="upload-area" id="upload-area">
-            <div>Drop PLY files here or</div>
-            <input type="file" id="file-input" accept=".ply" multiple>
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <div id="load-message">Loading Keyframes...</div>
+            <div id="load-progress">0%</div>
+        </div>
+
+        <div id="controls">
+            <div class="control-group">
+                <label>Files:</label>
+                <input type="file" id="folder-input" webkitdirectory multiple accept=".ply" />
+            </div>
+            
+            <div class="control-group">
+                <span id="status" class="status">Ready - Select PLY folder</span>
+            </div>
+            
+            <div class="control-group">
+                <button id="play-btn" disabled>Play</button>
+                <button id="pause-btn" disabled>Pause</button>
+                <button id="reset-btn" disabled>Reset</button>
+            </div>
+            
+            <div class="control-group">
+                <label>Interpolation:</label>
+                <select id="interp-mode">
+                    <option value="linear">Linear</option>
+                    <option value="smooth">Smooth</option>
+                    <option value="none">Keyframes Only</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label>FPS:</label>
+                <span id="fps-display">25</span>
+                <input type="range" id="fps-slider" min="10" max="60" value="25" style="flex: 1;" />
+            </div>
+            
+            <div class="control-group">
+                <label>Quality:</label>
+                <span id="quality-display">1.0x</span>
+                <input type="range" id="quality-slider" min="0.2" max="2.0" step="0.1" value="1.0" style="flex: 1;" />
+            </div>
+
+            <div class="file-info">
+                Keyframes: <span id="keyframe-count">0</span> | 
+                Points: <span id="point-count">0</span>
+            </div>
+
+            <div id="debug-info" class="debug"></div>
+        </div>
+
+        <div id="timeline">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <span>Time: <span id="current-time">00:00</span> / <span id="total-time">16:00</span></span>
+                <span>Frame: <span id="current-frame">0</span></span>
+            </div>
+            <div id="progress-bar">
+                <div id="progress-fill"></div>
+            </div>
         </div>
     </div>
-    
-    <div id="controls">
-        <button id="play-btn" disabled>Play</button>
-        <button id="pause-btn" disabled>Pause</button>
-        <button id="reset-btn" disabled>Reset</button>
-        <span id="frame-display">Frame: 0/0</span>
-    </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/three.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/controls/OrbitControls.js"></script>
-    
-    <script>
-        // Wait for Three.js to load
-        function initDemo() {
-            if (typeof THREE === 'undefined') {
-                console.log('Waiting for Three.js to load...');
-                setTimeout(initDemo, 100);
-                return;
-            }
-            
-            console.log('Three.js loaded successfully, starting demo');
-            new SimplePLYTest();
-        }
-        
-        class SimplePLYTest {
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.159.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js';
+
+        class KeyframePlayer {
             constructor() {
-                console.log('Creating SimplePLYTest, THREE version:', THREE.REVISION);
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
                 
-                // Basic Three.js setup
-                this.scene = new THREE.Scene();
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-                this.renderer = new THREE.WebGLRenderer({ 
-                    canvas: document.getElementById('canvas'),
-                    antialias: true
-                });
-                
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-                this.camera.position.set(0, 0, 5);
-                
-                this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
-                this.controls.enableDamping = true;
-                
-                // Add some lighting
-                this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-                directionalLight.position.set(1, 1, 1);
-                this.scene.add(directionalLight);
-                
-                // Data
-                this.frames = [];
-                this.currentFrame = 0;
+                this.keyframes = [];
+                this.currentTime = 0;
+                this.totalDuration = 16.0;
+                this.targetFPS = 25;
                 this.isPlaying = false;
-                this.playSpeed = 1000 / 25; // 25fps
+                this.lastFrameTime = 0;
                 
-                this.setupUI();
-                this.startRenderLoop();
+                this.pointsGroup = null;
+                this.interpolationMode = 'linear';
+                this.qualityScale = 1.0;
                 
-                console.log('Simple PLY Test initialized');
+                this.debugLog = this.debugLog.bind(this);
+                
+                this.initScene();
+                this.setupControls();
             }
             
-            setupUI() {
-                const fileInput = document.getElementById('file-input');
-                const uploadArea = document.getElementById('upload-area');
+            debugLog(message) {
+                console.log(message);
+                const debugEl = document.getElementById('debug-info');
+                debugEl.innerHTML = message + '<br>' + debugEl.innerHTML;
+                // Keep only last 5 lines
+                const lines = debugEl.innerHTML.split('<br>');
+                if (lines.length > 5) {
+                    debugEl.innerHTML = lines.slice(0, 5).join('<br>');
+                }
+            }
+            
+            initScene() {
+                // Scene setup
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x000000);
                 
-                // File input change
-                fileInput.addEventListener('change', (e) => {
-                    console.log('Files selected:', e.target.files.length);
+                // Camera
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
+                this.camera.position.set(0, 1, 3);
+                
+                // Renderer
+                const canvas = document.getElementById('canvas');
+                this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                
+                // Controls
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                
+                // Lighting
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                this.scene.add(ambientLight);
+                
+                // Start render loop
+                this.animate();
+                
+                this.debugLog('Scene initialized');
+            }
+            
+            setupControls() {
+                // File input
+                document.getElementById('folder-input').addEventListener('change', (e) => {
                     this.loadFiles(e.target.files);
                 });
                 
-                // Drag and drop
-                uploadArea.addEventListener('dragover', (e) => {
-                    e.preventDefault();
-                    uploadArea.classList.add('dragover');
+                // Playback
+                document.getElementById('play-btn').addEventListener('click', () => this.play());
+                document.getElementById('pause-btn').addEventListener('click', () => this.pause());
+                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
+                
+                // Settings
+                document.getElementById('interp-mode').addEventListener('change', (e) => {
+                    this.interpolationMode = e.target.value;
+                    this.debugLog(`Interpolation: ${this.interpolationMode}`);
                 });
                 
-                uploadArea.addEventListener('dragleave', (e) => {
-                    uploadArea.classList.remove('dragover');
+                document.getElementById('fps-slider').addEventListener('input', (e) => {
+                    this.targetFPS = parseInt(e.target.value);
+                    document.getElementById('fps-display').textContent = this.targetFPS;
                 });
                 
-                uploadArea.addEventListener('drop', (e) => {
-                    e.preventDefault();
-                    uploadArea.classList.remove('dragover');
-                    console.log('Files dropped:', e.dataTransfer.files.length);
-                    this.loadFiles(e.dataTransfer.files);
+                document.getElementById('quality-slider').addEventListener('input', (e) => {
+                    this.qualityScale = parseFloat(e.target.value);
+                    document.getElementById('quality-display').textContent = this.qualityScale.toFixed(1) + 'x';
+                    this.updateVisualization();
                 });
                 
-                // Controls
-                document.getElementById('play-btn').onclick = () => this.play();
-                document.getElementById('pause-btn').onclick = () => this.pause();
-                document.getElementById('reset-btn').onclick = () => this.reset();
-                
-                window.addEventListener('resize', () => {
-                    this.camera.aspect = window.innerWidth / window.innerHeight;
-                    this.camera.updateProjectionMatrix();
-                    this.renderer.setSize(window.innerWidth, window.innerHeight);
+                // Timeline click
+                document.getElementById('progress-bar').addEventListener('click', (e) => {
+                    if (this.keyframes.length > 0) {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const clickX = e.clientX - rect.left;
+                        const progress = clickX / rect.width;
+                        this.currentTime = progress * this.totalDuration;
+                        this.updateVisualization();
+                    }
                 });
+                
+                // Window resize
+                window.addEventListener('resize', () => this.onWindowResize());
             }
             
             async loadFiles(files) {
-                console.log('Loading files...');
-                this.setStatus('Loading PLY files...');
+                if (!files || files.length === 0) {
+                    this.debugLog('No files selected');
+                    return;
+                }
+                
+                this.showLoading();
+                this.updateStatus('Loading files...');
                 
                 try {
-                    // Filter PLY files and sort by name
+                    // Filter PLY files
                     const plyFiles = Array.from(files)
                         .filter(file => file.name.toLowerCase().endsWith('.ply'))
                         .sort((a, b) => a.name.localeCompare(b.name));
                     
-                    console.log(`Found ${plyFiles.length} PLY files`);
-                    document.getElementById('file-count').textContent = plyFiles.length;
+                    this.debugLog(`Found ${plyFiles.length} PLY files`);
                     
                     if (plyFiles.length === 0) {
-                        throw new Error('No PLY files selected');
+                        throw new Error('No PLY files found');
                     }
                     
-                    this.frames = [];
+                    this.keyframes = [];
                     
-                    // Load each PLY file
                     for (let i = 0; i < plyFiles.length; i++) {
                         const file = plyFiles[i];
-                        console.log(`Loading ${file.name}...`);
+                        
+                        // Update progress
+                        const progress = ((i + 1) / plyFiles.length * 100);
+                        document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
+                        document.getElementById('load-message').textContent = `Loading ${file.name}...`;
                         
                         try {
-                            const arrayBuffer = await this.readFileAsArrayBuffer(file);
-                            const points = this.parsePLY(arrayBuffer);
+                            const points = await this.loadPLYFile(file);
                             
                             if (points && points.length > 0) {
-                                this.frames.push({
-                                    name: file.name,
-                                    points: points
+                                const timestamp = (i / (plyFiles.length - 1)) * this.totalDuration;
+                                
+                                this.keyframes.push({
+                                    timestamp: timestamp,
+                                    points: points,
+                                    filename: file.name
                                 });
-                                console.log(`Loaded ${file.name}: ${points.length} points`);
+                                
+                                this.debugLog(`Loaded ${file.name}: ${points.length} points`);
                             } else {
-                                console.warn(`No points found in ${file.name}`);
+                                this.debugLog(`Warning: ${file.name} has no points`);
                             }
                         } catch (error) {
-                            console.error(`Error loading ${file.name}:`, error);
+                            this.debugLog(`Error loading ${file.name}: ${error.message}`);
                         }
+                        
+                        // Allow UI to update
+                        await new Promise(resolve => setTimeout(resolve, 10));
                     }
                     
-                    if (this.frames.length === 0) {
-                        throw new Error('No valid PLY frames loaded');
+                    if (this.keyframes.length === 0) {
+                        throw new Error('No valid keyframes loaded');
                     }
                     
-                    console.log(`Successfully loaded ${this.frames.length} frames`);
-                    this.setStatus(`Loaded ${this.frames.length} PLY files`);
-                    document.getElementById('file-count').textContent = this.frames.length;
-                    
-                    // Show first frame
-                    this.showFrame(0);
+                    this.updateUI();
+                    this.updateVisualization();
+                    this.updateStatus(`Loaded ${this.keyframes.length} keyframes`);
+                    this.hideLoading();
                     
                     // Enable controls
                     document.getElementById('play-btn').disabled = false;
                     document.getElementById('reset-btn').disabled = false;
                     
                 } catch (error) {
-                    console.error('Loading failed:', error);
-                    this.setStatus(`Error: ${error.message}`, true);
+                    this.debugLog(`Loading failed: ${error.message}`);
+                    this.updateStatus(`Error: ${error.message}`, true);
+                    this.hideLoading();
                 }
             }
             
-            readFileAsArrayBuffer(file) {
+            loadPLYFile(file) {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
-                    reader.onload = e => resolve(e.target.result);
-                    reader.onerror = e => reject(new Error('Failed to read file'));
+                    
+                    reader.onload = (e) => {
+                        try {
+                            const arrayBuffer = e.target.result;
+                            const points = this.parsePLY(arrayBuffer);
+                            resolve(points);
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+                    
+                    reader.onerror = () => reject(new Error('Failed to read file'));
                     reader.readAsArrayBuffer(file);
                 });
             }
             
             parsePLY(arrayBuffer) {
                 try {
-                    console.log(`Parsing PLY (${arrayBuffer.byteLength} bytes)`);
-                    
-                    // Read header
+                    // Convert to text to find header
                     const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
                     const headerText = new TextDecoder().decode(headerView);
                     
-                    const endIndex = headerText.indexOf('end_header\n');
-                    if (endIndex === -1) {
-                        throw new Error('Invalid PLY format - no end_header found');
+                    const headerEndIndex = headerText.indexOf('end_header\n');
+                    if (headerEndIndex === -1) {
+                        throw new Error('Invalid PLY file - no end_header found');
                     }
                     
-                    const lines = headerText.substring(0, endIndex).split('\n');
+                    const headerEndByte = headerEndIndex + 11; // 'end_header\n'.length
                     
-                    // Parse vertex count
+                    // Parse header
+                    const header = headerText.substring(0, headerEndIndex);
+                    const lines = header.split('\n');
+                    
                     let vertexCount = 0;
                     const properties = [];
                     
@@ -310,98 +469,188 @@
                         }
                     }
                     
-                    console.log(`PLY has ${vertexCount} vertices with properties:`, properties);
-                    
                     if (vertexCount === 0) {
-                        throw new Error('No vertices found');
+                        throw new Error('No vertices found in PLY file');
                     }
                     
                     // Read binary data
-                    const headerEndByte = endIndex + 11;
                     const dataView = new DataView(arrayBuffer, headerEndByte);
                     const points = [];
                     const bytesPerVertex = properties.length * 4; // 4 bytes per float
                     
-                    // Sample points for performance (max 5000)
-                    const maxPoints = 5000;
-                    const step = Math.max(1, Math.floor(vertexCount / maxPoints));
-                    
-                    for (let i = 0; i < vertexCount; i += step) {
+                    for (let i = 0; i < vertexCount; i++) {
                         const offset = i * bytesPerVertex;
                         
                         if (offset + bytesPerVertex > dataView.byteLength) {
                             break;
                         }
                         
-                        const point = {
-                            position: [0, 0, 0],
-                            color: [1, 1, 1],
-                            opacity: 1.0
-                        };
+                        const point = { position: [0, 0, 0], color: [1, 1, 1], opacity: 1 };
                         
-                        // Read each property
                         for (let j = 0; j < properties.length; j++) {
                             const propOffset = offset + j * 4;
                             const value = dataView.getFloat32(propOffset, true); // little endian
                             const propName = properties[j];
                             
-                            // Map common PLY properties
-                            switch (propName) {
-                                case 'x':
-                                    point.position[0] = value;
-                                    break;
-                                case 'y':
-                                    point.position[1] = value;
-                                    break;
-                                case 'z':
-                                    point.position[2] = value;
-                                    break;
-                                case 'f_dc_0':
-                                    point.color[0] = Math.max(0, Math.min(1, value + 0.5));
-                                    break;
-                                case 'f_dc_1':
-                                    point.color[1] = Math.max(0, Math.min(1, value + 0.5));
-                                    break;
-                                case 'f_dc_2':
-                                    point.color[2] = Math.max(0, Math.min(1, value + 0.5));
-                                    break;
-                                case 'opacity':
-                                    point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
-                                    break;
+                            if (propName === 'x') point.position[0] = value;
+                            else if (propName === 'y') point.position[1] = value;
+                            else if (propName === 'z') point.position[2] = value;
+                            else if (propName === 'f_dc_0') point.color[0] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'f_dc_1') point.color[1] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'f_dc_2') point.color[2] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (propName === 'opacity') {
+                                point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
                             }
                         }
                         
                         points.push(point);
                     }
                     
-                    console.log(`Parsed ${points.length} points from PLY`);
                     return points;
                     
                 } catch (error) {
-                    console.error('PLY parsing error:', error);
-                    throw error;
+                    throw new Error(`PLY parsing failed: ${error.message}`);
                 }
             }
             
-            showFrame(frameIndex) {
-                if (frameIndex < 0 || frameIndex >= this.frames.length) return;
+            play() {
+                this.isPlaying = true;
+                this.lastFrameTime = performance.now();
+                document.getElementById('play-btn').disabled = true;
+                document.getElementById('pause-btn').disabled = false;
+                this.updateStatus('Playing');
+            }
+            
+            pause() {
+                this.isPlaying = false;
+                document.getElementById('play-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                this.updateStatus('Paused');
+            }
+            
+            reset() {
+                this.isPlaying = false;
+                this.currentTime = 0;
+                document.getElementById('play-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                this.updateVisualization();
+                this.updateStatus('Reset');
+            }
+            
+            updateVisualization() {
+                if (this.keyframes.length === 0) return;
                 
-                // Clear scene (except lights)
-                const objectsToRemove = [];
-                this.scene.traverse(child => {
-                    if (child instanceof THREE.Mesh) {
-                        objectsToRemove.push(child);
+                let points;
+                
+                if (this.interpolationMode === 'none') {
+                    // Show nearest keyframe
+                    points = this.getNearestKeyframe().points;
+                } else {
+                    // Interpolate between keyframes
+                    points = this.getInterpolatedPoints();
+                }
+                
+                this.renderPoints(points);
+                this.updateTimeDisplay();
+            }
+            
+            getNearestKeyframe() {
+                let nearest = this.keyframes[0];
+                let minDiff = Math.abs(this.currentTime - nearest.timestamp);
+                
+                for (const keyframe of this.keyframes) {
+                    const diff = Math.abs(this.currentTime - keyframe.timestamp);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = keyframe;
                     }
-                });
-                objectsToRemove.forEach(obj => this.scene.remove(obj));
+                }
                 
-                // Add points from current frame
-                const frame = this.frames[frameIndex];
-                const group = new THREE.Group();
+                return nearest;
+            }
+            
+            getInterpolatedPoints() {
+                // Find surrounding keyframes
+                let prev = null, next = null;
                 
-                for (const point of frame.points) {
-                    const geometry = new THREE.SphereGeometry(0.02, 8, 6);
-                    const material = new THREE.MeshLambertMaterial({
+                for (let i = 0; i < this.keyframes.length - 1; i++) {
+                    if (this.currentTime >= this.keyframes[i].timestamp && 
+                        this.currentTime <= this.keyframes[i + 1].timestamp) {
+                        prev = this.keyframes[i];
+                        next = this.keyframes[i + 1];
+                        break;
+                    }
+                }
+                
+                if (!prev || !next) {
+                    // Before first or after last
+                    if (this.currentTime < this.keyframes[0].timestamp) {
+                        return this.keyframes[0].points;
+                    } else {
+                        return this.keyframes[this.keyframes.length - 1].points;
+                    }
+                }
+                
+                // Interpolate
+                const timeDiff = next.timestamp - prev.timestamp;
+                const t = timeDiff > 0 ? (this.currentTime - prev.timestamp) / timeDiff : 0;
+                const smoothT = this.interpolationMode === 'smooth' ? this.smoothstep(t) : t;
+                
+                return this.interpolatePoints(prev.points, next.points, smoothT);
+            }
+            
+            interpolatePoints(points1, points2, t) {
+                const count = Math.min(points1.length, points2.length);
+                const interpolated = [];
+                
+                for (let i = 0; i < count; i++) {
+                    const p1 = points1[i];
+                    const p2 = points2[i];
+                    
+                    interpolated.push({
+                        position: [
+                            this.lerp(p1.position[0], p2.position[0], t),
+                            this.lerp(p1.position[1], p2.position[1], t),
+                            this.lerp(p1.position[2], p2.position[2], t)
+                        ],
+                        color: [
+                            this.lerp(p1.color[0], p2.color[0], t),
+                            this.lerp(p1.color[1], p2.color[1], t),
+                            this.lerp(p1.color[2], p2.color[2], t)
+                        ],
+                        opacity: this.lerp(p1.opacity, p2.opacity, t)
+                    });
+                }
+                
+                return interpolated;
+            }
+            
+            lerp(a, b, t) {
+                return a + (b - a) * t;
+            }
+            
+            smoothstep(t) {
+                return t * t * (3 - 2 * t);
+            }
+            
+            renderPoints(points) {
+                // Remove previous points
+                if (this.pointsGroup) {
+                    this.scene.remove(this.pointsGroup);
+                }
+                
+                this.pointsGroup = new THREE.Group();
+                
+                // Sample points based on quality
+                const sampleCount = Math.floor(points.length * this.qualityScale);
+                const step = Math.max(1, Math.floor(points.length / sampleCount));
+                
+                for (let i = 0; i < points.length; i += step) {
+                    const point = points[i];
+                    
+                    // Create sphere for each point
+                    const geometry = new THREE.SphereGeometry(0.02, 6, 4);
+                    const material = new THREE.MeshBasicMaterial({
                         color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
                         transparent: true,
                         opacity: point.opacity
@@ -409,70 +658,81 @@
                     
                     const mesh = new THREE.Mesh(geometry, material);
                     mesh.position.set(point.position[0], point.position[1], point.position[2]);
-                    group.add(mesh);
+                    
+                    this.pointsGroup.add(mesh);
                 }
                 
-                this.scene.add(group);
+                this.scene.add(this.pointsGroup);
                 
-                this.currentFrame = frameIndex;
-                document.getElementById('frame-display').textContent = `Frame: ${frameIndex + 1}/${this.frames.length}`;
-                document.getElementById('point-count').textContent = frame.points.length;
-                
-                console.log(`Showing frame ${frameIndex}: ${frame.points.length} points`);
+                // Update point count display
+                document.getElementById('point-count').textContent = this.pointsGroup.children.length;
             }
             
-            play() {
-                if (this.frames.length <= 1) return;
+            animate() {
+                requestAnimationFrame(() => this.animate());
                 
-                this.isPlaying = true;
-                document.getElementById('play-btn').disabled = true;
-                document.getElementById('pause-btn').disabled = false;
-                this.setStatus('Playing');
+                const now = performance.now();
+                const deltaTime = (now - this.lastFrameTime) / 1000;
                 
-                this.playInterval = setInterval(() => {
-                    this.currentFrame = (this.currentFrame + 1) % this.frames.length;
-                    this.showFrame(this.currentFrame);
-                }, this.playSpeed);
-            }
-            
-            pause() {
-                this.isPlaying = false;
-                document.getElementById('play-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
-                this.setStatus('Paused');
-                
-                if (this.playInterval) {
-                    clearInterval(this.playInterval);
+                if (this.isPlaying && this.keyframes.length > 0) {
+                    this.currentTime += deltaTime;
+                    
+                    if (this.currentTime >= this.totalDuration) {
+                        this.currentTime = 0; // Loop
+                    }
+                    
+                    this.updateVisualization();
                 }
+                
+                this.lastFrameTime = now;
+                this.controls.update();
+                this.renderer.render(this.scene, this.camera);
             }
             
-            reset() {
-                this.pause();
-                this.currentFrame = 0;
-                if (this.frames.length > 0) {
-                    this.showFrame(0);
-                }
-                this.setStatus('Reset');
+            updateTimeDisplay() {
+                const minutes = Math.floor(this.currentTime / 60);
+                const seconds = Math.floor(this.currentTime % 60);
+                
+                document.getElementById('current-time').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                
+                const progress = (this.currentTime / this.totalDuration) * 100;
+                document.getElementById('progress-fill').style.width = `${progress}%`;
+                
+                const frameNumber = Math.floor((this.currentTime / this.totalDuration) * (this.keyframes.length || 1));
+                document.getElementById('current-frame').textContent = frameNumber;
             }
             
-            startRenderLoop() {
-                const animate = () => {
-                    requestAnimationFrame(animate);
-                    this.controls.update();
-                    this.renderer.render(this.scene, this.camera);
-                };
-                animate();
+            updateUI() {
+                document.getElementById('keyframe-count').textContent = this.keyframes.length;
+                
+                const totalPoints = this.keyframes.reduce((sum, kf) => sum + kf.points.length, 0);
+                document.getElementById('point-count').textContent = totalPoints;
             }
             
-            setStatus(message, isError = false) {
+            updateStatus(message, isError = false) {
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = message;
                 statusEl.className = isError ? 'error' : 'status';
             }
+            
+            showLoading() {
+                document.getElementById('loading').style.display = 'block';
+            }
+            
+            hideLoading() {
+                document.getElementById('loading').style.display = 'none';
+            }
+            
+            onWindowResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
         }
         
-        // Start the test when page loads
-        window.addEventListener('load', initDemo);
+        // Start the application
+        new KeyframePlayer();
     </script>
 </body>
 </html>
