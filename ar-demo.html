@@ -3,590 +3,307 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>4D Gaussian Splatting AR Demo - Auto-Loading</title>
+    <title>4D Gaussian Splatting AR Demo V3</title>
     <style>
-        body {
+        * {
             margin: 0;
             padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
             background: #000;
+            color: white;
             font-family: Arial, sans-serif;
             overflow: hidden;
             touch-action: none;
         }
-
-        #container {
-            position: relative;
+        
+        #canvas {
+            display: block;
             width: 100vw;
             height: 100vh;
         }
-
-        #canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-
-        #controls {
-            position: absolute;
+        
+        #ui {
+            position: fixed;
             top: 10px;
             left: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
             padding: 15px;
             border-radius: 8px;
-            z-index: 100;
-            font-size: 14px;
-            max-width: 350px;
-            transition: opacity 0.3s;
-        }
-
-        #controls.ar-mode {
-            background: rgba(0, 0, 0, 0.6);
+            font-size: 12px;
             backdrop-filter: blur(10px);
         }
-
-        #ar-controls {
-            position: absolute;
+        
+        #controls {
+            position: fixed;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
             padding: 15px;
             border-radius: 8px;
-            z-index: 100;
-            display: none;
-            backdrop-filter: blur(10px);
-        }
-
-        #timeline {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            z-index: 100;
-            transition: opacity 0.3s;
-        }
-
-        #timeline.ar-mode {
-            bottom: 100px;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-        }
-
-        #progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 10px 0;
-            cursor: pointer;
-        }
-
-        #progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #00ff88, #0088ff);
-            width: 0%;
-            transition: width 0.1s ease;
-        }
-
-        .control-group {
-            margin: 8px 0;
             display: flex;
-            align-items: center;
             gap: 10px;
-            flex-wrap: wrap;
+            align-items: center;
+            backdrop-filter: blur(10px);
         }
-
+        
         button {
             background: #007acc;
             color: white;
             border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
+            padding: 10px 20px;
+            border-radius: 5px;
             cursor: pointer;
             font-size: 12px;
-            touch-action: manipulation;
         }
-
+        
         button:hover {
             background: #0099ff;
         }
-
+        
         button:disabled {
             background: #555;
             cursor: not-allowed;
         }
-
-        button.ar-button {
+        
+        .ar-btn {
             background: #ff6b35;
-            font-size: 14px;
-            padding: 12px 20px;
         }
-
-        button.ar-button:hover {
+        
+        .ar-btn:hover {
             background: #ff8c42;
         }
-
-        input[type="range"] {
-            flex: 1;
+        
+        #progress {
+            width: 200px;
+            height: 5px;
+            background: #333;
+            border-radius: 3px;
+            overflow: hidden;
             margin: 0 10px;
-            min-width: 100px;
         }
-
-        input[type="file"] {
-            color: white;
-            background: #333;
-            border: 1px solid #555;
-            border-radius: 4px;
-            padding: 5px;
-            font-size: 11px;
+        
+        #progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff88, #0088ff);
+            width: 0%;
+            transition: width 0.1s;
         }
-
-        select {
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            border-radius: 4px;
-            padding: 5px;
-        }
-
-        .status {
-            color: #00ff88;
-            font-weight: bold;
-        }
-
-        .error {
-            color: #ff4444;
-            font-weight: bold;
-        }
-
-        .warning {
-            color: #ffaa00;
-            font-weight: bold;
-        }
-
-        .loading {
-            position: absolute;
+        
+        #loading {
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: white;
-            text-align: center;
-            z-index: 200;
-            background: rgba(0, 0, 0, 0.9);
+            z-index: 2000;
+            background: rgba(0,0,0,0.9);
             padding: 30px;
             border-radius: 10px;
+            text-align: center;
+            display: none;
         }
-
+        
         .spinner {
+            width: 40px;
+            height: 40px;
             border: 3px solid #333;
             border-top: 3px solid #00ff88;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
         }
-
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .file-info {
+        
+        .status {
+            color: #00ff88;
+        }
+        
+        .error {
+            color: #ff4444;
+        }
+        
+        .info {
             font-size: 11px;
             color: #aaa;
             margin-top: 5px;
         }
-
-        .debug {
-            font-size: 11px;
-            color: #888;
-            margin-top: 5px;
-            max-height: 60px;
-            overflow-y: auto;
-        }
-
-        .ar-instructions {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: white;
-            text-align: center;
-            z-index: 150;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            border-radius: 10px;
-            display: none;
-            backdrop-filter: blur(10px);
-        }
-
-        .gesture-info {
-            position: absolute;
-            top: 70px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.6);
-            color: white;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 11px;
-            z-index: 100;
-            display: none;
-            backdrop-filter: blur(10px);
-        }
-
-        @media (max-width: 768px) {
-            #controls {
-                font-size: 12px;
-                max-width: 280px;
-                padding: 10px;
-            }
-            
-            button {
-                font-size: 11px;
-                padding: 6px 12px;
-            }
-        }
     </style>
 </head>
 <body>
-    <div id="container">
-        <canvas id="canvas"></canvas>
-        
-        <div id="loading" class="loading" style="display: none;">
-            <div class="spinner"></div>
-            <div id="load-message">Auto-loading from GitHub...</div>
-            <div id="load-progress">0%</div>
+    <canvas id="canvas"></canvas>
+    
+    <div id="loading">
+        <div class="spinner"></div>
+        <div id="load-text">Loading PLY files...</div>
+        <div id="load-progress">0/400</div>
+    </div>
+    
+    <div id="ui">
+        <div>Status: <span id="status" class="status">Ready</span></div>
+        <div>Frames: <span id="frame-count">0</span>/400</div>
+        <div>Points: <span id="point-count">0</span></div>
+        <div>Current: <span id="current-frame">0</span></div>
+        <div class="info">Tap surfaces in AR to place content</div>
+        <div class="info">Pinch to scale • Drag to rotate</div>
+    </div>
+    
+    <div id="controls">
+        <button id="load-btn">Load Data</button>
+        <button id="play-btn" disabled>Play</button>
+        <button id="pause-btn" disabled>Pause</button>
+        <button id="reset-btn" disabled>Reset</button>
+        <div id="progress">
+            <div id="progress-fill"></div>
         </div>
-
-        <div id="ar-instructions" class="ar-instructions">
-            <h3>AR Mode Active</h3>
-            <p>Tap on any surface to place the Gaussian Splatting content</p>
-            <p>Use pinch gestures to scale • Drag to rotate</p>
-            <button onclick="this.parentElement.style.display='none'">Got it!</button>
-        </div>
-
-        <div id="gesture-info" class="gesture-info">
-            <div>Pinch: Scale</div>
-            <div>Drag: Rotate</div>
-            <div>Tap: Reposition</div>
-        </div>
-
-        <div id="controls">
-            <div class="control-group">
-                <button id="ar-btn" class="ar-button">Enter AR</button>
-                <button id="exit-ar-btn" class="ar-button" style="display: none;">Exit AR</button>
-            </div>
-
-            <div class="control-group">
-                <label>Auto-load:</label>
-                <button id="auto-load-btn">Load from GitHub</button>
-                <button id="test-single-btn">Test Single File</button>
-                <button id="manual-load-btn">Manual Upload</button>
-            </div>
-            
-            <div class="control-group" id="manual-upload" style="display: none;">
-                <input type="file" id="folder-input" webkitdirectory multiple accept=".ply" />
-                <br>
-                <small style="color: #aaa;">Or select individual files:</small>
-                <input type="file" id="files-input" multiple accept=".ply" />
-            </div>
-            
-            <div class="control-group">
-                <span id="status" class="status">Click 'Load from GitHub' to start</span>
-            </div>
-            
-            <div class="control-group">
-                <button id="play-btn" disabled>Play</button>
-                <button id="pause-btn" disabled>Pause</button>
-                <button id="reset-btn" disabled>Reset</button>
-            </div>
-            
-            <div class="control-group">
-                <label>Interpolation:</label>
-                <select id="interp-mode">
-                    <option value="linear">Linear</option>
-                    <option value="smooth">Smooth</option>
-                    <option value="none">Keyframes Only</option>
-                </select>
-            </div>
-            
-            <div class="control-group">
-                <label>FPS:</label>
-                <span id="fps-display">25</span>
-                <input type="range" id="fps-slider" min="10" max="60" value="25" style="flex: 1;" />
-            </div>
-            
-            <div class="control-group">
-                <label>Quality:</label>
-                <span id="quality-display">1.0x</span>
-                <input type="range" id="quality-slider" min="0.2" max="2.0" step="0.1" value="1.0" style="flex: 1;" />
-            </div>
-
-            <div class="file-info">
-                Keyframes: <span id="keyframe-count">0</span> | 
-                Points: <span id="point-count">0</span>
-            </div>
-
-            <div id="debug-info" class="debug"></div>
-        </div>
-
-        <div id="ar-controls">
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <button id="ar-play-btn">Play</button>
-                <button id="ar-pause-btn">Pause</button>
-                <button id="ar-reset-btn">Reset</button>
-                <span style="color: #aaa;">Scale: <span id="ar-scale">1.0x</span></span>
-            </div>
-        </div>
-
-        <div id="timeline">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <span>Time: <span id="current-time">00:00</span> / <span id="total-time">16:00</span></span>
-                <span>Frame: <span id="current-frame">0</span></span>
-            </div>
-            <div id="progress-bar">
-                <div id="progress-fill"></div>
-            </div>
-        </div>
+        <span id="time-display">00:00/16:00</span>
+        <button id="ar-btn" class="ar-btn" disabled>AR Mode</button>
+        <button id="exit-ar-btn" class="ar-btn" style="display:none;">Exit AR</button>
     </div>
 
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.159.0/build/three.module.js",
+            "three/examples/jsm/controls/OrbitControls": "https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js"
+        }
+    }
+    </script>
+    
     <script type="module">
-        // V2 - Fixed module imports and added comprehensive debugging
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
         
-        console.log('Starting module imports...');
-        console.log('Current URL:', window.location.href);
-        console.log('Is HTTPS:', window.location.protocol === 'https:');
+        console.log('Three.js loaded:', THREE.REVISION);
         
-        try {
-            console.log('Importing Three.js...');
-            const THREE = await import('https://unpkg.com/three@0.159.0/build/three.module.js');
-            console.log('Three.js loaded successfully:', THREE.REVISION);
-            
-            console.log('Importing OrbitControls...');
-            const { OrbitControls } = await import('https://unpkg.com/three@0.159.0/examples/jsm/controls/OrbitControls.js');
-            console.log('OrbitControls loaded successfully');
-            
-            // Make THREE global for the class
-            window.THREE = THREE;
-            window.OrbitControls = OrbitControls;
-
-        
-        // Start the application after successful import
-        class ARGaussianSplatting {
+        class ARGaussianDemo {
             constructor() {
-                console.log('ARGaussianSplatting constructor started');
-                console.log('THREE available:', typeof window.THREE !== 'undefined');
-                console.log('OrbitControls available:', typeof window.OrbitControls !== 'undefined');
-                
-                this.scene = null;
-                this.camera = null;
-                this.renderer = null;
-                this.controls = null;
-                
-                this.keyframes = [];
-                this.currentTime = 0;
-                this.totalDuration = 16.0;
-                this.targetFPS = 25;
-                this.isPlaying = false;
-                this.lastFrameTime = 0;
-                
-                this.pointsGroup = null;
-                this.interpolationMode = 'linear';
-                this.qualityScale = 1.0;
-                
-                // AR specific
-                this.isARMode = false;
-                this.xrSession = null;
-                this.xrReferenceSpace = null;
-                this.hitTestSource = null;
-                this.reticle = null;
-                this.arContent = null;
-                this.arScale = 1.0;
-                this.arRotation = { x: 0, y: 0 };
-                
-                // Touch handling
-                this.touches = new Map();
-                this.lastTouchDistance = 0;
-                this.isRotating = false;
-                this.lastRotation = { x: 0, y: 0 };
-                
-                this.debugLog = this.debugLog.bind(this);
-                
-                this.checkARSupport();
-                this.initScene();
-                this.setupControls();
-                this.setupTouchHandlers();
-            }
-            
-            debugLog(message) {
-                console.log(message);
-                const debugEl = document.getElementById('debug-info');
-                debugEl.innerHTML = message + '<br>' + debugEl.innerHTML;
-                const lines = debugEl.innerHTML.split('<br>');
-                if (lines.length > 5) {
-                    debugEl.innerHTML = lines.slice(0, 5).join('<br>');
-                }
-            }
-            
-            async checkARSupport() {
-                if ('xr' in navigator) {
-                    try {
-                        const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
-                        if (isSupported) {
-                            this.debugLog('WebXR AR supported');
-                            document.getElementById('ar-btn').disabled = false;
-                        } else {
-                            this.debugLog('WebXR AR not supported');
-                            this.showARFallbackMessage();
-                        }
-                    } catch (error) {
-                        this.debugLog('WebXR not available');
-                        this.showARFallbackMessage();
-                    }
-                } else {
-                    this.debugLog('WebXR not supported by browser');
-                    this.showARFallbackMessage();
-                }
-            }
-            
-            showARFallbackMessage() {
-                const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-                if (isIOS) {
-                    this.updateStatus('iOS: WebXR AR limited. Try Chrome or use Safari with ARKit-based solutions', false, 'warning');
-                } else {
-                    this.updateStatus('AR not supported. Use Chrome on Android or WebXR-compatible browser', false, 'warning');
-                }
-                document.getElementById('ar-btn').disabled = true;
-            }
-            
-            initScene() {
-                const THREE = window.THREE;
-                const OrbitControls = window.OrbitControls;
-                
+                // Scene setup
                 this.scene = new THREE.Scene();
-                this.scene.background = new THREE.Color(0x000000);
-                
-                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.01, 1000);
-                this.camera.position.set(0, 1, 3);
-                
-                const canvas = document.getElementById('canvas');
+                this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
                 this.renderer = new THREE.WebGLRenderer({ 
-                    canvas, 
-                    antialias: true, 
-                    alpha: true,
-                    preserveDrawingBuffer: true
+                    canvas: document.getElementById('canvas'),
+                    antialias: true,
+                    alpha: true 
                 });
+                
                 this.renderer.setSize(window.innerWidth, window.innerHeight);
                 this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
                 this.renderer.xr.enabled = true;
                 
+                // Controls
                 this.controls = new OrbitControls(this.camera, this.renderer.domElement);
                 this.controls.enableDamping = true;
-                this.controls.dampingFactor = 0.05;
+                this.camera.position.set(0, 1, 3);
                 
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-                this.scene.add(ambientLight);
+                // Lighting
+                this.scene.add(new THREE.AmbientLight(0xffffff, 0.8));
                 
-                this.createReticle();
+                // Data
+                this.frames = [];
+                this.currentTime = 0;
+                this.totalTime = 16.0; // 16 seconds
+                this.fps = 25;
+                this.isPlaying = false;
+                this.isLoading = false;
+                
+                // AR
+                this.isARMode = false;
+                this.xrSession = null;
+                this.hitTestSource = null;
+                this.reticle = null;
+                this.arContent = null;
+                this.arScale = 1.0;
+                
+                // Touch handling
+                this.touches = new Map();
+                this.lastDistance = 0;
+                this.lastRotation = { x: 0, y: 0 };
+                
+                this.setupUI();
+                this.setupAR();
+                this.setupTouch();
                 this.animate();
                 
-                this.debugLog(`Scene initialized - Three.js r${THREE.REVISION}`);
+                this.setStatus('Ready - Click Load Data to start');
             }
             
-            createReticle() {
-                const THREE = window.THREE;
-                const geometry = new THREE.RingGeometry(0.15, 0.2, 32).rotateX(-Math.PI / 2);
-                const material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+            setupUI() {
+                document.getElementById('load-btn').onclick = () => this.loadData();
+                document.getElementById('play-btn').onclick = () => this.play();
+                document.getElementById('pause-btn').onclick = () => this.pause();
+                document.getElementById('reset-btn').onclick = () => this.reset();
+                document.getElementById('ar-btn').onclick = () => this.startAR();
+                document.getElementById('exit-ar-btn').onclick = () => this.exitAR();
+                
+                window.addEventListener('resize', () => this.onResize());
+            }
+            
+            async setupAR() {
+                if ('xr' in navigator) {
+                    try {
+                        const supported = await navigator.xr.isSessionSupported('immersive-ar');
+                        if (supported) {
+                            document.getElementById('ar-btn').disabled = false;
+                            console.log('AR supported');
+                        } else {
+                            console.log('AR not supported');
+                        }
+                    } catch (e) {
+                        console.log('AR check failed:', e);
+                    }
+                } else {
+                    console.log('WebXR not available');
+                }
+                
+                // Create reticle
+                const geometry = new THREE.RingGeometry(0.1, 0.15, 32).rotateX(-Math.PI / 2);
+                const material = new THREE.MeshBasicMaterial({ 
+                    color: 0xffffff, 
+                    transparent: true, 
+                    opacity: 0.5 
+                });
                 this.reticle = new THREE.Mesh(geometry, material);
                 this.reticle.matrixAutoUpdate = false;
                 this.reticle.visible = false;
                 this.scene.add(this.reticle);
             }
             
-            setupControls() {
-                document.getElementById('auto-load-btn').addEventListener('click', () => this.autoLoadFromGitHub());
-                document.getElementById('test-single-btn').addEventListener('click', () => this.testSingleFile());
-                document.getElementById('manual-load-btn').addEventListener('click', () => this.showManualUpload());
-                
-                document.getElementById('folder-input').addEventListener('change', (e) => {
-                    this.debugLog(`Folder input triggered: ${e.target.files.length} files selected`);
-                    if (e.target.files.length === 0) {
-                        this.debugLog('No files in selection');
-                        return;
-                    }
-                    this.loadFiles(e.target.files);
-                });
-                
-                document.getElementById('files-input').addEventListener('change', (e) => {
-                    this.debugLog(`Files input triggered: ${e.target.files.length} files selected`);
-                    if (e.target.files.length === 0) {
-                        this.debugLog('No files in selection');
-                        return;
-                    }
-                    this.loadFiles(e.target.files);
-                });
-                
-                document.getElementById('play-btn').addEventListener('click', () => this.play());
-                document.getElementById('pause-btn').addEventListener('click', () => this.pause());
-                document.getElementById('reset-btn').addEventListener('click', () => this.reset());
-                
-                document.getElementById('ar-play-btn').addEventListener('click', () => this.play());
-                document.getElementById('ar-pause-btn').addEventListener('click', () => this.pause());
-                document.getElementById('ar-reset-btn').addEventListener('click', () => this.reset());
-                
-                document.getElementById('ar-btn').addEventListener('click', () => this.startAR());
-                document.getElementById('exit-ar-btn').addEventListener('click', () => this.exitAR());
-                
-                document.getElementById('interp-mode').addEventListener('change', (e) => {
-                    this.interpolationMode = e.target.value;
-                    this.debugLog(`Interpolation: ${this.interpolationMode}`);
-                });
-                
-                document.getElementById('fps-slider').addEventListener('input', (e) => {
-                    this.targetFPS = parseInt(e.target.value);
-                    document.getElementById('fps-display').textContent = this.targetFPS;
-                });
-                
-                document.getElementById('quality-slider').addEventListener('input', (e) => {
-                    this.qualityScale = parseFloat(e.target.value);
-                    document.getElementById('quality-display').textContent = this.qualityScale.toFixed(1) + 'x';
-                    this.updateVisualization();
-                });
-                
-                document.getElementById('progress-bar').addEventListener('click', (e) => {
-                    if (this.keyframes.length > 0) {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const clickX = e.clientX - rect.left;
-                        const progress = clickX / rect.width;
-                        this.currentTime = progress * this.totalDuration;
-                        this.updateVisualization();
-                    }
-                });
-                
-                window.addEventListener('resize', () => this.onWindowResize());
-            }
-            
-            setupTouchHandlers() {
+            setupTouch() {
                 const canvas = document.getElementById('canvas');
                 
-                canvas.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
-                canvas.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
-                canvas.addEventListener('touchend', (e) => this.onTouchEnd(e), { passive: false });
+                canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.onTouchStart(e);
+                }, { passive: false });
                 
-                canvas.addEventListener('click', (e) => this.onCanvasClick(e));
+                canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    this.onTouchMove(e);
+                }, { passive: false });
+                
+                canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.onTouchEnd(e);
+                }, { passive: false });
+                
+                canvas.addEventListener('click', (e) => {
+                    if (this.isARMode && this.reticle.visible && this.frames.length > 0) {
+                        this.placeContent();
+                    }
+                });
             }
             
             onTouchStart(event) {
-                event.preventDefault();
-                
-                if (!this.isARMode) return;
+                if (!this.isARMode || !this.arContent) return;
                 
                 this.touches.clear();
                 for (let touch of event.touches) {
@@ -597,14 +314,9 @@
                 }
                 
                 if (event.touches.length === 2) {
-                    const touch1 = event.touches[0];
-                    const touch2 = event.touches[1];
-                    this.lastTouchDistance = Math.hypot(
-                        touch1.clientX - touch2.clientX,
-                        touch1.clientY - touch2.clientY
-                    );
+                    const [t1, t2] = event.touches;
+                    this.lastDistance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
                 } else if (event.touches.length === 1) {
-                    this.isRotating = true;
                     this.lastRotation = {
                         x: event.touches[0].clientX,
                         y: event.touches[0].clientY
@@ -613,287 +325,113 @@
             }
             
             onTouchMove(event) {
-                event.preventDefault();
-                
                 if (!this.isARMode || !this.arContent) return;
                 
                 if (event.touches.length === 2) {
                     // Pinch to scale
-                    const touch1 = event.touches[0];
-                    const touch2 = event.touches[1];
-                    const distance = Math.hypot(
-                        touch1.clientX - touch2.clientX,
-                        touch1.clientY - touch2.clientY
-                    );
+                    const [t1, t2] = event.touches;
+                    const distance = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
                     
-                    if (this.lastTouchDistance > 0) {
-                        const scale = distance / this.lastTouchDistance;
+                    if (this.lastDistance > 0) {
+                        const scale = distance / this.lastDistance;
                         this.arScale *= scale;
                         this.arScale = Math.max(0.1, Math.min(5.0, this.arScale));
                         this.arContent.scale.setScalar(this.arScale);
-                        document.getElementById('ar-scale').textContent = this.arScale.toFixed(1) + 'x';
                     }
+                    this.lastDistance = distance;
                     
-                    this.lastTouchDistance = distance;
-                } else if (event.touches.length === 1 && this.isRotating) {
+                } else if (event.touches.length === 1) {
                     // Drag to rotate
-                    const deltaX = event.touches[0].clientX - this.lastRotation.x;
-                    const deltaY = event.touches[0].clientY - this.lastRotation.y;
+                    const touch = event.touches[0];
+                    const deltaX = touch.clientX - this.lastRotation.x;
+                    const deltaY = touch.clientY - this.lastRotation.y;
                     
-                    this.arRotation.y += deltaX * 0.01;
-                    this.arRotation.x += deltaY * 0.01;
+                    this.arContent.rotation.y += deltaX * 0.01;
+                    this.arContent.rotation.x += deltaY * 0.01;
                     
-                    this.arContent.rotation.set(this.arRotation.x, this.arRotation.y, 0);
-                    
-                    this.lastRotation = {
-                        x: event.touches[0].clientX,
-                        y: event.touches[0].clientY
-                    };
+                    this.lastRotation = { x: touch.clientX, y: touch.clientY };
                 }
             }
             
             onTouchEnd(event) {
-                event.preventDefault();
-                
                 if (event.touches.length === 0) {
-                    this.isRotating = false;
-                    this.lastTouchDistance = 0;
                     this.touches.clear();
+                    this.lastDistance = 0;
                 }
             }
             
-            onCanvasClick(event) {
-                if (this.isARMode && this.reticle.visible && this.keyframes.length > 0) {
-                    this.placeContent();
-                }
-            }
-            
-            async testSingleFile() {
-                const testUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/compressed_frame_000001.ply';
-                this.updateStatus('Testing single file access...');
-                this.debugLog(`Testing URL: ${testUrl}`);
+            async loadData() {
+                if (this.isLoading) return;
+                this.isLoading = true;
                 
-                try {
-                    const response = await fetch(testUrl, {
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'application/octet-stream'
-                        }
-                    });
-                    
-                    this.debugLog(`Response status: ${response.status} ${response.statusText}`);
-                    this.debugLog(`Response headers: ${JSON.stringify([...response.headers])}`);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    const arrayBuffer = await response.arrayBuffer();
-                    this.debugLog(`File size: ${arrayBuffer.byteLength} bytes`);
-                    
-                    // Try parsing the PLY
-                    const points = this.parsePLY(arrayBuffer);
-                    this.debugLog(`Successfully parsed ${points.length} points`);
-                    this.updateStatus(`Test successful: ${points.length} points loaded`);
-                    
-                } catch (error) {
-                    this.debugLog(`Test failed: ${error.message}`);
-                    this.updateStatus(`Test failed: ${error.message}`, true);
-                }
-            }
-            
-            showManualUpload() {
-                document.getElementById('manual-upload').style.display = 'flex';
-                this.updateStatus('Select PLY folder or files for manual upload');
-                this.debugLog('Manual upload mode activated');
-                
-                // Debug: check if webkitdirectory is supported
-                const fileInput = document.getElementById('folder-input');
-                if ('webkitdirectory' in fileInput) {
-                    this.debugLog('webkitdirectory supported');
-                } else {
-                    this.debugLog('webkitdirectory NOT supported - will need individual file selection');
-                }
-            }
-            
-            async autoLoadFromGitHub() {
                 this.showLoading();
-                this.updateStatus('Auto-loading from GitHub...');
+                this.setStatus('Loading PLY files from GitHub...');
+                document.getElementById('load-btn').disabled = true;
                 
                 try {
+                    this.frames = [];
                     const baseUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/';
                     const totalFrames = 400;
-                    this.keyframes = [];
                     
                     for (let i = 1; i <= totalFrames; i++) {
-                        const frameNumber = i.toString().padStart(6, '0');
-                        const url = `${baseUrl}compressed_frame_${frameNumber}.ply`;
+                        const frameNum = i.toString().padStart(6, '0');
+                        const url = `${baseUrl}compressed_frame_${frameNum}.ply`;
                         
-                        const progress = (i / totalFrames * 100);
-                        document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
-                        document.getElementById('load-message').textContent = `Loading frame ${i}/${totalFrames}...`;
+                        document.getElementById('load-progress').textContent = `${i}/${totalFrames}`;
                         
                         try {
-                            this.debugLog(`Fetching: ${url}`);
-                            const response = await fetch(url, {
-                                method: 'GET',
-                                headers: {
-                                    'Accept': 'application/octet-stream'
-                                }
-                            });
-                            
+                            const response = await fetch(url);
                             if (!response.ok) {
                                 if (i === 1) {
-                                    throw new Error(`Cannot access GitHub data. Status: ${response.status} - ${response.statusText}. URL: ${url}`);
-                                } else {
-                                    this.debugLog(`Frame ${i} not found, stopping at ${i-1} frames`);
-                                    break;
+                                    throw new Error(`Cannot access data: ${response.status}`);
                                 }
+                                console.log(`Stopped at frame ${i-1}`);
+                                break;
                             }
                             
                             const arrayBuffer = await response.arrayBuffer();
                             const points = this.parsePLY(arrayBuffer);
                             
                             if (points && points.length > 0) {
-                                const timestamp = ((i - 1) / (totalFrames - 1)) * this.totalDuration;
-                                
-                                this.keyframes.push({
-                                    timestamp: timestamp,
-                                    points: points,
-                                    filename: `compressed_frame_${frameNumber}.ply`
+                                this.frames.push({
+                                    timestamp: (i - 1) / (totalFrames - 1) * this.totalTime,
+                                    points: points
                                 });
-                                
-                                if (i % 50 === 0) {
-                                    this.debugLog(`Loaded ${i} frames successfully`);
-                                }
                             }
                             
-                            // Allow UI to update every 10 frames
-                            if (i % 10 === 0) {
+                            // Update UI every 50 frames
+                            if (i % 50 === 0) {
+                                document.getElementById('frame-count').textContent = this.frames.length;
                                 await new Promise(resolve => setTimeout(resolve, 1));
                             }
                             
                         } catch (error) {
-                            if (i === 1) {
-                                throw error;
-                            } else {
-                                this.debugLog(`Stopping at frame ${i-1}: ${error.message}`);
-                                break;
-                            }
+                            if (i === 1) throw error;
+                            console.log(`Frame ${i} failed:`, error.message);
+                            break;
                         }
                     }
                     
-                    if (this.keyframes.length === 0) {
-                        throw new Error('No frames loaded successfully');
+                    if (this.frames.length === 0) {
+                        throw new Error('No frames loaded');
                     }
                     
-                    this.updateUI();
+                    document.getElementById('frame-count').textContent = this.frames.length;
+                    this.setStatus(`Loaded ${this.frames.length} frames`);
                     this.updateVisualization();
-                    this.updateStatus(`Loaded ${this.keyframes.length} frames from GitHub`);
-                    this.hideLoading();
                     
+                    // Enable controls
                     document.getElementById('play-btn').disabled = false;
                     document.getElementById('reset-btn').disabled = false;
                     
                 } catch (error) {
-                    this.debugLog(`Auto-loading failed: ${error.message}`);
-                    this.updateStatus(`Auto-load failed: ${error.message}. Try manual upload.`, true);
+                    console.error('Loading failed:', error);
+                    this.setStatus(`Error: ${error.message}`, true);
+                } finally {
                     this.hideLoading();
-                    this.showManualUpload();
+                    document.getElementById('load-btn').disabled = false;
+                    this.isLoading = false;
                 }
-            }
-            
-            async loadFiles(files) {
-                this.debugLog(`loadFiles called with ${files ? files.length : 0} files`);
-                
-                if (!files || files.length === 0) {
-                    this.debugLog('No files selected or files is null/undefined');
-                    this.updateStatus('No files selected', true);
-                    return;
-                }
-                
-                this.showLoading();
-                this.updateStatus('Loading files...');
-                
-                try {
-                    const plyFiles = Array.from(files)
-                        .filter(file => file.name.toLowerCase().endsWith('.ply'))
-                        .sort((a, b) => a.name.localeCompare(b.name));
-                    
-                    this.debugLog(`Found ${plyFiles.length} PLY files out of ${files.length} total files`);
-                    
-                    if (plyFiles.length === 0) {
-                        throw new Error('No PLY files found');
-                    }
-                    
-                    this.keyframes = [];
-                    
-                    for (let i = 0; i < plyFiles.length; i++) {
-                        const file = plyFiles[i];
-                        
-                        const progress = ((i + 1) / plyFiles.length * 100);
-                        document.getElementById('load-progress').textContent = `${progress.toFixed(0)}%`;
-                        document.getElementById('load-message').textContent = `Loading ${file.name}...`;
-                        
-                        try {
-                            const points = await this.loadPLYFile(file);
-                            
-                            if (points && points.length > 0) {
-                                const timestamp = (i / (plyFiles.length - 1)) * this.totalDuration;
-                                
-                                this.keyframes.push({
-                                    timestamp: timestamp,
-                                    points: points,
-                                    filename: file.name
-                                });
-                                
-                                this.debugLog(`Loaded ${file.name}: ${points.length} points`);
-                            } else {
-                                this.debugLog(`Warning: ${file.name} has no points`);
-                            }
-                        } catch (error) {
-                            this.debugLog(`Error loading ${file.name}: ${error.message}`);
-                        }
-                        
-                        await new Promise(resolve => setTimeout(resolve, 10));
-                    }
-                    
-                    if (this.keyframes.length === 0) {
-                        throw new Error('No valid keyframes loaded');
-                    }
-                    
-                    this.updateUI();
-                    this.updateVisualization();
-                    this.updateStatus(`Loaded ${this.keyframes.length} keyframes`);
-                    this.hideLoading();
-                    
-                    document.getElementById('play-btn').disabled = false;
-                    document.getElementById('reset-btn').disabled = false;
-                    
-                } catch (error) {
-                    this.debugLog(`Loading failed: ${error.message}`);
-                    this.updateStatus(`Error: ${error.message}`, true);
-                    this.hideLoading();
-                }
-            }
-            
-            loadPLYFile(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    
-                    reader.onload = (e) => {
-                        try {
-                            const arrayBuffer = e.target.result;
-                            const points = this.parsePLY(arrayBuffer);
-                            resolve(points);
-                        } catch (error) {
-                            reject(error);
-                        }
-                    };
-                    
-                    reader.onerror = () => reject(new Error('Failed to read file'));
-                    reader.readAsArrayBuffer(file);
-                });
             }
             
             parsePLY(arrayBuffer) {
@@ -901,14 +439,11 @@
                     const headerView = new Uint8Array(arrayBuffer, 0, Math.min(2000, arrayBuffer.byteLength));
                     const headerText = new TextDecoder().decode(headerView);
                     
-                    const headerEndIndex = headerText.indexOf('end_header\n');
-                    if (headerEndIndex === -1) {
-                        throw new Error('Invalid PLY file - no end_header found');
-                    }
+                    const endIndex = headerText.indexOf('end_header\n');
+                    if (endIndex === -1) throw new Error('Invalid PLY format');
                     
-                    const headerEndByte = headerEndIndex + 11;
-                    const header = headerText.substring(0, headerEndIndex);
-                    const lines = header.split('\n');
+                    const headerEndByte = endIndex + 11;
+                    const lines = headerText.substring(0, endIndex).split('\n');
                     
                     let vertexCount = 0;
                     const properties = [];
@@ -921,9 +456,7 @@
                         }
                     }
                     
-                    if (vertexCount === 0) {
-                        throw new Error('No vertices found in PLY file');
-                    }
+                    if (vertexCount === 0) return [];
                     
                     const dataView = new DataView(arrayBuffer, headerEndByte);
                     const points = [];
@@ -931,25 +464,25 @@
                     
                     for (let i = 0; i < vertexCount; i++) {
                         const offset = i * bytesPerVertex;
+                        if (offset + bytesPerVertex > dataView.byteLength) break;
                         
-                        if (offset + bytesPerVertex > dataView.byteLength) {
-                            break;
-                        }
-                        
-                        const point = { position: [0, 0, 0], color: [1, 1, 1], opacity: 1 };
+                        const point = { 
+                            position: [0, 0, 0], 
+                            color: [1, 1, 1], 
+                            opacity: 1 
+                        };
                         
                         for (let j = 0; j < properties.length; j++) {
-                            const propOffset = offset + j * 4;
-                            const value = dataView.getFloat32(propOffset, true);
-                            const propName = properties[j];
+                            const value = dataView.getFloat32(offset + j * 4, true);
+                            const prop = properties[j];
                             
-                            if (propName === 'x') point.position[0] = value;
-                            else if (propName === 'y') point.position[1] = value;
-                            else if (propName === 'z') point.position[2] = value;
-                            else if (propName === 'f_dc_0') point.color[0] = Math.max(0, Math.min(1, value + 0.5));
-                            else if (propName === 'f_dc_1') point.color[1] = Math.max(0, Math.min(1, value + 0.5));
-                            else if (propName === 'f_dc_2') point.color[2] = Math.max(0, Math.min(1, value + 0.5));
-                            else if (propName === 'opacity') {
+                            if (prop === 'x') point.position[0] = value;
+                            else if (prop === 'y') point.position[1] = value;
+                            else if (prop === 'z') point.position[2] = value;
+                            else if (prop === 'f_dc_0') point.color[0] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'f_dc_1') point.color[1] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'f_dc_2') point.color[2] = Math.max(0, Math.min(1, value + 0.5));
+                            else if (prop === 'opacity') {
                                 point.opacity = Math.max(0.1, Math.min(1, 1.0 / (1.0 + Math.exp(-value))));
                             }
                         }
@@ -960,19 +493,36 @@
                     return points;
                     
                 } catch (error) {
-                    throw new Error(`PLY parsing failed: ${error.message}`);
+                    console.error('PLY parsing error:', error);
+                    return [];
                 }
             }
             
+            play() {
+                this.isPlaying = true;
+                document.getElementById('play-btn').disabled = true;
+                document.getElementById('pause-btn').disabled = false;
+                this.setStatus('Playing');
+            }
+            
+            pause() {
+                this.isPlaying = false;
+                document.getElementById('play-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                this.setStatus('Paused');
+            }
+            
+            reset() {
+                this.isPlaying = false;
+                this.currentTime = 0;
+                document.getElementById('play-btn').disabled = false;
+                document.getElementById('pause-btn').disabled = true;
+                this.updateVisualization();
+                this.setStatus('Reset');
+            }
+            
             async startAR() {
-                if (!navigator.xr) {
-                    this.updateStatus('WebXR not supported', true);
-                    return;
-                }
-                
                 try {
-                    this.updateStatus('Starting AR session...');
-                    
                     this.xrSession = await navigator.xr.requestSession('immersive-ar', {
                         requiredFeatures: ['local', 'hit-test']
                     });
@@ -980,30 +530,20 @@
                     await this.renderer.xr.setSession(this.xrSession);
                     
                     this.xrReferenceSpace = await this.xrSession.requestReferenceSpace('local');
-                    
                     this.hitTestSource = await this.xrSession.requestHitTestSource({
                         space: await this.xrSession.requestReferenceSpace('viewer')
                     });
                     
                     this.isARMode = true;
-                    
-                    // Update UI for AR mode
-                    document.getElementById('controls').classList.add('ar-mode');
-                    document.getElementById('timeline').classList.add('ar-mode');
-                    document.getElementById('ar-controls').style.display = 'block';
-                    document.getElementById('gesture-info').style.display = 'block';
-                    document.getElementById('ar-instructions').style.display = 'block';
                     document.getElementById('ar-btn').style.display = 'none';
-                    document.getElementById('exit-ar-btn').style.display = 'inline-block';
+                    document.getElementById('exit-ar-btn').style.display = 'block';
                     
-                    this.xrSession.addEventListener('end', () => this.onARSessionEnd());
-                    
-                    this.updateStatus('AR session active - tap to place content');
-                    this.debugLog('AR session started successfully');
+                    this.xrSession.addEventListener('end', () => this.onAREnd());
+                    this.setStatus('AR Mode - Tap surfaces to place content');
                     
                 } catch (error) {
-                    this.updateStatus(`AR failed: ${error.message}`, true);
-                    this.debugLog(`AR session failed: ${error.message}`);
+                    console.error('AR start failed:', error);
+                    this.setStatus(`AR failed: ${error.message}`, true);
                 }
             }
             
@@ -1013,36 +553,24 @@
                 }
             }
             
-            onARSessionEnd() {
+            onAREnd() {
                 this.isARMode = false;
-                this.hitTestSource = null;
                 this.xrSession = null;
-                this.xrReferenceSpace = null;
+                this.hitTestSource = null;
                 
                 if (this.arContent) {
                     this.scene.remove(this.arContent);
                     this.arContent = null;
                 }
                 
-                // Reset UI
-                document.getElementById('controls').classList.remove('ar-mode');
-                document.getElementById('timeline').classList.remove('ar-mode');
-                document.getElementById('ar-controls').style.display = 'none';
-                document.getElementById('gesture-info').style.display = 'none';
-                document.getElementById('ar-instructions').style.display = 'none';
-                document.getElementById('ar-btn').style.display = 'inline-block';
-                document.getElementById('exit-ar-btn').style.display = 'none';
-                
                 this.reticle.visible = false;
-                
-                this.updateStatus('AR session ended');
-                this.debugLog('AR session ended');
+                document.getElementById('ar-btn').style.display = 'block';
+                document.getElementById('exit-ar-btn').style.display = 'none';
+                this.setStatus('AR session ended');
             }
             
             placeContent() {
-                if (!this.keyframes.length || !this.reticle.visible) return;
-                
-                const THREE = window.THREE;
+                if (!this.frames.length || !this.reticle.visible) return;
                 
                 if (this.arContent) {
                     this.scene.remove(this.arContent);
@@ -1051,32 +579,53 @@
                 this.arContent = new THREE.Group();
                 this.arContent.scale.setScalar(this.arScale);
                 this.arContent.position.copy(this.reticle.position);
-                this.arContent.rotation.set(this.arRotation.x, this.arRotation.y, 0);
                 
-                // Get current frame points
-                let points;
-                if (this.interpolationMode === 'none') {
-                    points = this.getNearestKeyframe().points;
-                } else {
-                    points = this.getInterpolatedPoints();
+                const currentFrame = this.getCurrentFrame();
+                if (currentFrame) {
+                    this.renderPoints(currentFrame.points, this.arContent);
+                    this.scene.add(this.arContent);
                 }
-                
-                this.renderPointsToGroup(points, this.arContent);
-                this.scene.add(this.arContent);
-                
-                this.debugLog('Content placed in AR');
             }
             
-            renderPointsToGroup(points, group) {
-                const THREE = window.THREE;
+            getCurrentFrame() {
+                if (this.frames.length === 0) return null;
                 
-                // Clear existing content
-                while (group.children.length > 0) {
-                    group.remove(group.children[0]);
+                // Find nearest frame
+                let nearest = this.frames[0];
+                let minDiff = Math.abs(this.currentTime - nearest.timestamp);
+                
+                for (const frame of this.frames) {
+                    const diff = Math.abs(this.currentTime - frame.timestamp);
+                    if (diff < minDiff) {
+                        minDiff = diff;
+                        nearest = frame;
+                    }
                 }
                 
-                const sampleCount = Math.floor(points.length * this.qualityScale);
-                const step = Math.max(1, Math.floor(points.length / sampleCount));
+                return nearest;
+            }
+            
+            renderPoints(points, target = null) {
+                if (!target) {
+                    // Remove existing points
+                    const existingPoints = this.scene.getObjectByName('points');
+                    if (existingPoints) {
+                        this.scene.remove(existingPoints);
+                    }
+                    
+                    target = new THREE.Group();
+                    target.name = 'points';
+                    this.scene.add(target);
+                }
+                
+                // Clear target
+                while (target.children.length > 0) {
+                    target.remove(target.children[0]);
+                }
+                
+                // Sample points for performance
+                const maxPoints = 5000;
+                const step = Math.max(1, Math.floor(points.length / maxPoints));
                 
                 for (let i = 0; i < points.length; i += step) {
                     const point = points[i];
@@ -1089,202 +638,67 @@
                     });
                     
                     const mesh = new THREE.Mesh(geometry, material);
-                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
-                    
-                    group.add(mesh);
+                    mesh.position.set(...point.position);
+                    target.add(mesh);
                 }
-            }
-            
-            play() {
-                this.isPlaying = true;
-                this.lastFrameTime = performance.now();
-                document.getElementById('play-btn').disabled = true;
-                document.getElementById('pause-btn').disabled = false;
-                document.getElementById('ar-play-btn').disabled = true;
-                document.getElementById('ar-pause-btn').disabled = false;
-                this.updateStatus('Playing');
-            }
-            
-            pause() {
-                this.isPlaying = false;
-                document.getElementById('play-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
-                document.getElementById('ar-play-btn').disabled = false;
-                document.getElementById('ar-pause-btn').disabled = true;
-                this.updateStatus('Paused');
-            }
-            
-            reset() {
-                this.isPlaying = false;
-                this.currentTime = 0;
-                document.getElementById('play-btn').disabled = false;
-                document.getElementById('pause-btn').disabled = true;
-                document.getElementById('ar-play-btn').disabled = false;
-                document.getElementById('ar-pause-btn').disabled = true;
-                this.updateVisualization();
-                this.updateStatus('Reset');
+                
+                document.getElementById('point-count').textContent = target.children.length;
             }
             
             updateVisualization() {
-                if (this.keyframes.length === 0) return;
+                if (this.frames.length === 0) return;
                 
-                let points;
-                
-                if (this.interpolationMode === 'none') {
-                    points = this.getNearestKeyframe().points;
-                } else {
-                    points = this.getInterpolatedPoints();
-                }
-                
-                if (!this.isARMode) {
-                    this.renderPoints(points);
-                } else if (this.arContent) {
-                    this.renderPointsToGroup(points, this.arContent);
+                const currentFrame = this.getCurrentFrame();
+                if (currentFrame) {
+                    if (!this.isARMode) {
+                        this.renderPoints(currentFrame.points);
+                    } else if (this.arContent) {
+                        this.renderPoints(currentFrame.points, this.arContent);
+                    }
                 }
                 
                 this.updateTimeDisplay();
             }
             
-            getNearestKeyframe() {
-                let nearest = this.keyframes[0];
-                let minDiff = Math.abs(this.currentTime - nearest.timestamp);
+            updateTimeDisplay() {
+                const minutes = Math.floor(this.currentTime / 60);
+                const seconds = Math.floor(this.currentTime % 60);
+                const totalMinutes = Math.floor(this.totalTime / 60);
+                const totalSeconds = Math.floor(this.totalTime % 60);
                 
-                for (const keyframe of this.keyframes) {
-                    const diff = Math.abs(this.currentTime - keyframe.timestamp);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        nearest = keyframe;
-                    }
-                }
+                document.getElementById('time-display').textContent = 
+                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}/` +
+                    `${totalMinutes.toString().padStart(2, '0')}:${totalSeconds.toString().padStart(2, '0')}`;
                 
-                return nearest;
-            }
-            
-            getInterpolatedPoints() {
-                let prev = null, next = null;
+                const progress = (this.currentTime / this.totalTime) * 100;
+                document.getElementById('progress-fill').style.width = `${progress}%`;
                 
-                for (let i = 0; i < this.keyframes.length - 1; i++) {
-                    if (this.currentTime >= this.keyframes[i].timestamp && 
-                        this.currentTime <= this.keyframes[i + 1].timestamp) {
-                        prev = this.keyframes[i];
-                        next = this.keyframes[i + 1];
-                        break;
-                    }
-                }
-                
-                if (!prev || !next) {
-                    if (this.currentTime < this.keyframes[0].timestamp) {
-                        return this.keyframes[0].points;
-                    } else {
-                        return this.keyframes[this.keyframes.length - 1].points;
-                    }
-                }
-                
-                const timeDiff = next.timestamp - prev.timestamp;
-                const t = timeDiff > 0 ? (this.currentTime - prev.timestamp) / timeDiff : 0;
-                const smoothT = this.interpolationMode === 'smooth' ? this.smoothstep(t) : t;
-                
-                return this.interpolatePoints(prev.points, next.points, smoothT);
-            }
-            
-            interpolatePoints(points1, points2, t) {
-                const count = Math.min(points1.length, points2.length);
-                const interpolated = [];
-                
-                for (let i = 0; i < count; i++) {
-                    const p1 = points1[i];
-                    const p2 = points2[i];
-                    
-                    interpolated.push({
-                        position: [
-                            this.lerp(p1.position[0], p2.position[0], t),
-                            this.lerp(p1.position[1], p2.position[1], t),
-                            this.lerp(p1.position[2], p2.position[2], t)
-                        ],
-                        color: [
-                            this.lerp(p1.color[0], p2.color[0], t),
-                            this.lerp(p1.color[1], p2.color[1], t),
-                            this.lerp(p1.color[2], p2.color[2], t)
-                        ],
-                        opacity: this.lerp(p1.opacity, p2.opacity, t)
-                    });
-                }
-                
-                return interpolated;
-            }
-            
-            lerp(a, b, t) {
-                return a + (b - a) * t;
-            }
-            
-            smoothstep(t) {
-                return t * t * (3 - 2 * t);
-            }
-            
-            renderPoints(points) {
-                const THREE = window.THREE;
-                
-                if (this.pointsGroup) {
-                    this.scene.remove(this.pointsGroup);
-                }
-                
-                this.pointsGroup = new THREE.Group();
-                
-                const sampleCount = Math.floor(points.length * this.qualityScale);
-                const step = Math.max(1, Math.floor(points.length / sampleCount));
-                
-                for (let i = 0; i < points.length; i += step) {
-                    const point = points[i];
-                    
-                    const geometry = new THREE.SphereGeometry(0.02, 6, 4);
-                    const material = new THREE.MeshBasicMaterial({
-                        color: new THREE.Color(point.color[0], point.color[1], point.color[2]),
-                        transparent: true,
-                        opacity: point.opacity
-                    });
-                    
-                    const mesh = new THREE.Mesh(geometry, material);
-                    mesh.position.set(point.position[0], point.position[1], point.position[2]);
-                    
-                    this.pointsGroup.add(mesh);
-                }
-                
-                this.scene.add(this.pointsGroup);
-                document.getElementById('point-count').textContent = this.pointsGroup.children.length;
+                const frameIndex = Math.floor((this.currentTime / this.totalTime) * (this.frames.length - 1));
+                document.getElementById('current-frame').textContent = frameIndex;
             }
             
             animate() {
-                this.renderer.setAnimationLoop(() => {
-                    const now = performance.now();
-                    const deltaTime = (now - this.lastFrameTime) / 1000;
-                    
-                    if (this.isPlaying && this.keyframes.length > 0) {
-                        this.currentTime += deltaTime;
-                        
-                        if (this.currentTime >= this.totalDuration) {
-                            this.currentTime = 0;
+                this.renderer.setAnimationLoop((time, frame) => {
+                    if (this.isPlaying && this.frames.length > 0) {
+                        this.currentTime += 1 / 60; // 60fps animation loop
+                        if (this.currentTime >= this.totalTime) {
+                            this.currentTime = 0; // Loop
                         }
-                        
                         this.updateVisualization();
                     }
                     
-                    // Handle AR hit testing
-                    if (this.isARMode && this.hitTestSource && this.renderer.xr.getFrame) {
-                        const frame = this.renderer.xr.getFrame();
-                        if (frame) {
-                            const hitTestResults = frame.getHitTestResults(this.hitTestSource);
-                            
-                            if (hitTestResults.length > 0) {
-                                const hit = hitTestResults[0];
-                                this.reticle.visible = true;
-                                this.reticle.matrix.fromArray(hit.getPose(this.xrReferenceSpace).transform.matrix);
-                            } else {
-                                this.reticle.visible = false;
-                            }
+                    // AR hit testing
+                    if (this.isARMode && this.hitTestSource && frame) {
+                        const hitTestResults = frame.getHitTestResults(this.hitTestSource);
+                        if (hitTestResults.length > 0) {
+                            const hit = hitTestResults[0];
+                            const pose = hit.getPose(this.xrReferenceSpace);
+                            this.reticle.visible = true;
+                            this.reticle.matrix.fromArray(pose.transform.matrix);
+                        } else {
+                            this.reticle.visible = false;
                         }
                     }
-                    
-                    this.lastFrameTime = now;
                     
                     if (!this.isARMode) {
                         this.controls.update();
@@ -1294,31 +708,16 @@
                 });
             }
             
-            updateTimeDisplay() {
-                const minutes = Math.floor(this.currentTime / 60);
-                const seconds = Math.floor(this.currentTime % 60);
-                
-                document.getElementById('current-time').textContent = 
-                    `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                
-                const progress = (this.currentTime / this.totalDuration) * 100;
-                document.getElementById('progress-fill').style.width = `${progress}%`;
-                
-                const frameNumber = Math.floor((this.currentTime / this.totalDuration) * (this.keyframes.length || 1));
-                document.getElementById('current-frame').textContent = frameNumber;
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
             }
             
-            updateUI() {
-                document.getElementById('keyframe-count').textContent = this.keyframes.length;
-                
-                const totalPoints = this.keyframes.reduce((sum, kf) => sum + kf.points.length, 0);
-                document.getElementById('point-count').textContent = totalPoints;
-            }
-            
-            updateStatus(message, isError = false, type = 'status') {
+            setStatus(message, isError = false) {
                 const statusEl = document.getElementById('status');
                 statusEl.textContent = message;
-                statusEl.className = type === 'warning' ? 'warning' : (isError ? 'error' : 'status');
+                statusEl.className = isError ? 'error' : 'status';
             }
             
             showLoading() {
@@ -1328,30 +727,11 @@
             hideLoading() {
                 document.getElementById('loading').style.display = 'none';
             }
-            
-            onWindowResize() {
-                this.camera.aspect = window.innerWidth / window.innerHeight;
-                this.camera.updateProjectionMatrix();
-                this.renderer.setSize(window.innerWidth, window.innerHeight);
-            }
         }
         
-        // Start the application
-        console.log('Creating ARGaussianSplatting instance...');
-        new ARGaussianSplatting();
-        console.log('Application started successfully');
-        
-        } catch (error) {
-            console.error('Failed to load modules or start application:', error);
-            document.body.innerHTML = `
-                <div style="color: white; padding: 50px; text-align: center;">
-                    <h2>Loading Error</h2>
-                    <p>Failed to load Three.js modules: ${error.message}</p>
-                    <p>Please make sure you're serving this page from an HTTPS server (GitHub Pages should work).</p>
-                    <p>Current URL: ${window.location.href}</p>
-                </div>
-            `;
-        }
+        // Start the app
+        console.log('Starting AR Gaussian Demo...');
+        new ARGaussianDemo();
     </script>
 </body>
 </html>
