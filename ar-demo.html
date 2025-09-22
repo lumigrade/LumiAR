@@ -124,10 +124,22 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r159/controls/OrbitControls.js"></script>
     
     <script>
-        console.log('Starting Simple PLY Test V9');
+        // Wait for Three.js to load
+        function initDemo() {
+            if (typeof THREE === 'undefined') {
+                console.log('Waiting for Three.js to load...');
+                setTimeout(initDemo, 100);
+                return;
+            }
+            
+            console.log('Three.js loaded successfully, starting demo');
+            new SimplePLYTest();
+        }
         
         class SimplePLYTest {
             constructor() {
+                console.log('Creating SimplePLYTest, THREE version:', THREE.REVISION);
+                
                 // Basic Three.js setup
                 this.scene = new THREE.Scene();
                 this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -459,8 +471,8 @@
             }
         }
         
-        // Start the test
-        new SimplePLYTest();
+        // Start the test when page loads
+        window.addEventListener('load', initDemo);
     </script>
 </body>
 </html>
