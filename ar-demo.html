@@ -287,11 +287,15 @@
             <div class="control-group">
                 <label>Auto-load:</label>
                 <button id="auto-load-btn">Load from GitHub</button>
+                <button id="test-single-btn">Test Single File</button>
                 <button id="manual-load-btn">Manual Upload</button>
             </div>
             
             <div class="control-group" id="manual-upload" style="display: none;">
                 <input type="file" id="folder-input" webkitdirectory multiple accept=".ply" />
+                <br>
+                <small style="color: #aaa;">Or select individual files:</small>
+                <input type="file" id="files-input" multiple accept=".ply" />
             </div>
             
             <div class="control-group">
@@ -482,9 +486,24 @@
             
             setupControls() {
                 document.getElementById('auto-load-btn').addEventListener('click', () => this.autoLoadFromGitHub());
+                document.getElementById('test-single-btn').addEventListener('click', () => this.testSingleFile());
                 document.getElementById('manual-load-btn').addEventListener('click', () => this.showManualUpload());
                 
                 document.getElementById('folder-input').addEventListener('change', (e) => {
+                    this.debugLog(`Folder input triggered: ${e.target.files.length} files selected`);
+                    if (e.target.files.length === 0) {
+                        this.debugLog('No files in selection');
+                        return;
+                    }
+                    this.loadFiles(e.target.files);
+                });
+                
+                document.getElementById('files-input').addEventListener('change', (e) => {
+                    this.debugLog(`Files input triggered: ${e.target.files.length} files selected`);
+                    if (e.target.files.length === 0) {
+                        this.debugLog('No files in selection');
+                        return;
+                    }
                     this.loadFiles(e.target.files);
                 });
                 
@@ -623,9 +642,52 @@
                 }
             }
             
+            async testSingleFile() {
+                const testUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/compressed_frame_000001.ply';
+                this.updateStatus('Testing single file access...');
+                this.debugLog(`Testing URL: ${testUrl}`);
+                
+                try {
+                    const response = await fetch(testUrl, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/octet-stream'
+                        }
+                    });
+                    
+                    this.debugLog(`Response status: ${response.status} ${response.statusText}`);
+                    this.debugLog(`Response headers: ${JSON.stringify([...response.headers])}`);
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    this.debugLog(`File size: ${arrayBuffer.byteLength} bytes`);
+                    
+                    // Try parsing the PLY
+                    const points = this.parsePLY(arrayBuffer);
+                    this.debugLog(`Successfully parsed ${points.length} points`);
+                    this.updateStatus(`Test successful: ${points.length} points loaded`);
+                    
+                } catch (error) {
+                    this.debugLog(`Test failed: ${error.message}`);
+                    this.updateStatus(`Test failed: ${error.message}`, true);
+                }
+            }
+            
             showManualUpload() {
                 document.getElementById('manual-upload').style.display = 'flex';
-                this.updateStatus('Select PLY folder for manual upload');
+                this.updateStatus('Select PLY folder or files for manual upload');
+                this.debugLog('Manual upload mode activated');
+                
+                // Debug: check if webkitdirectory is supported
+                const fileInput = document.getElementById('folder-input');
+                if ('webkitdirectory' in fileInput) {
+                    this.debugLog('webkitdirectory supported');
+                } else {
+                    this.debugLog('webkitdirectory NOT supported - will need individual file selection');
+                }
             }
             
             async autoLoadFromGitHub() {
@@ -633,7 +695,7 @@
                 this.updateStatus('Auto-loading from GitHub...');
                 
                 try {
-                    const baseUrl = 'https://lumigrade.github.io/LumiAR/data/';
+                    const baseUrl = 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/';
                     const totalFrames = 400;
                     this.keyframes = [];
                     
@@ -646,10 +708,17 @@
                         document.getElementById('load-message').textContent = `Loading frame ${i}/${totalFrames}...`;
                         
                         try {
-                            const response = await fetch(url);
+                            this.debugLog(`Fetching: ${url}`);
+                            const response = await fetch(url, {
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/octet-stream'
+                                }
+                            });
+                            
                             if (!response.ok) {
                                 if (i === 1) {
-                                    throw new Error(`Cannot access GitHub data. Status: ${response.status}`);
+                                    throw new Error(`Cannot access GitHub data. Status: ${response.status} - ${response.statusText}. URL: ${url}`);
                                 } else {
                                     this.debugLog(`Frame ${i} not found, stopping at ${i-1} frames`);
                                     break;
@@ -709,8 +778,11 @@
             }
             
             async loadFiles(files) {
+                this.debugLog(`loadFiles called with ${files ? files.length : 0} files`);
+                
                 if (!files || files.length === 0) {
-                    this.debugLog('No files selected');
+                    this.debugLog('No files selected or files is null/undefined');
+                    this.updateStatus('No files selected', true);
                     return;
                 }
                 
@@ -722,7 +794,7 @@
                         .filter(file => file.name.toLowerCase().endsWith('.ply'))
                         .sort((a, b) => a.name.localeCompare(b.name));
                     
-                    this.debugLog(`Found ${plyFiles.length} PLY files`);
+                    this.debugLog(`Found ${plyFiles.length} PLY files out of ${files.length} total files`);
                     
                     if (plyFiles.length === 0) {
                         throw new Error('No PLY files found');
