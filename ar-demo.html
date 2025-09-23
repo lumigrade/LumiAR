@@ -203,6 +203,16 @@
     </div>
 
     <script type="module">
+        // Console.assert polyfill (GSplat.js requires this)
+        if (!console.assert) {
+            console.assert = function(condition, message) {
+                if (!condition) {
+                    console.error('Assertion failed:', message || 'Assertion failed');
+                    throw new Error(message || 'Assertion failed');
+                }
+            };
+        }
+
         // Debug logging
         function debugLog(message) {
             console.log('[DEBUG]', message);
@@ -213,7 +223,7 @@
             }
         }
 
-        debugLog('Script started');
+        debugLog('Script started with console.assert polyfill');
 
         // Global variables
         let SPLAT = null;
@@ -240,7 +250,7 @@
                 
                 SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
                 debugLog('gsplat.js imported successfully');
-                debugLog(`Available classes: ${Object.keys(SPLAT).join(', ')}`);
+                debugLog(`Available classes: ${Object.keys(SPLAT).slice(0, 10).join(', ')}...`);
                 
                 return true;
             } catch (error) {
@@ -271,9 +281,16 @@
                 
                 updateLoadingText('Creating WebGL renderer...');
                 
-                // Create renderer
+                // Create renderer with proper initialization
                 renderer = new SPLAT.WebGLRenderer(canvas);
                 debugLog('Renderer created');
+                
+                updateLoadingText('Adding VideoRenderProgram for .splatv files...');
+                
+                // Add VideoRenderProgram for .splatv support
+                const videoProgram = new SPLAT.VideoRenderProgram(renderer);
+                renderer.addProgram(videoProgram);
+                debugLog('VideoRenderProgram added');
                 
                 updateLoadingText('Setting up camera data...');
                 
@@ -313,21 +330,28 @@
             }
         }
 
-        // Render loop
+        // Render loop with proper error handling
         function startRenderLoop() {
             debugLog('Starting render loop');
             
             function render() {
                 try {
+                    // Update controls
                     if (window.controls) {
                         window.controls.update();
                     }
                     
+                    // Only render if we have all components
                     if (renderer && scene && camera) {
                         renderer.render(scene, camera);
                     }
                 } catch (error) {
-                    debugLog(`Render error: ${error.message}`);
+                    // Don't spam the console with render errors
+                    if (!render.errorLogged) {
+                        debugLog(`Render error: ${error.message}`);
+                        console.error('Render error:', error);
+                        render.errorLogged = true;
+                    }
                 }
                 requestAnimationFrame(render);
             }
@@ -371,9 +395,11 @@
                     playBtn.disabled = false;
                     arButton.disabled = false;
                     
-                    // Set camera target
+                    // Set camera target for better viewing
                     if (window.controls) {
-                        window.controls.setCameraTarget(new SPLAT.Vector3(0, 0, 0));
+                        const targetPos = camera.position.add(new SPLAT.Vector3(0, 0, -3));
+                        window.controls.setCameraTarget(targetPos);
+                        debugLog('Camera target set');
                     }
                     
                     loading.classList.add('hidden');
