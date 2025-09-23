@@ -163,142 +163,274 @@
           0.0,  2.0
         ];
 
-        async function main() {
-          if (!navigator.xr) {
-            alert('WebXR not supported!');
-            return;
-          }
+        function createWorker(self) {
+  let lastProj;
+  let positions;
+  let viewProj;
+  let vertexCount;
+  let lastVertexCount;
+  let sortRunning = false;
+  var _floatView = new Float32Array(1);
+  var _int32View = new Int32Array(_floatView.buffer);
 
-          const session = await navigator.xr.requestSession('immersive-ar', {
-            optionalFeatures: ['dom-overlay'],
-            domOverlay: { root: document.documentElement }
-          });
+  function floatToHalf(float) {
+    _floatView[0] = float;
+    var f = _int32View[0];
+    var sign = (f >> 31) & 0x0001;
+    var exp = (f >> 23) & 0x00ff;
+    var frac = f & 0x007fffff;
+    var newExp;
+    if (exp == 0) {
+      newExp = 0;
+    } else if (exp < 113) {
+      newExp = 0;
+      frac |= 0x00800000;
+      frac = frac >> (113 - exp);
+      if (frac & 0x01000000) {
+        newExp = 1;
+        frac = 0;
+      }
+    } else if (exp < 142) {
+      newExp = exp - 112;
+    } else {
+      newExp = 31;
+      frac = 0;
+    }
+    return (sign << 15) | (newExp << 10) | (frac >> 13);
+  }
 
-          const canvas = document.createElement('canvas');
-          gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
-          session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+  function packHalf2x16(x, y) {
+    return (floatToHalf(x) | (floatToHalf(y) << 16)) >>> 0;
+  }
 
-          refSpace = await session.requestReferenceSpace('local');
+  function runSort(viewProj) {
+    if (!positions) return;
+    if (lastVertexCount == vertexCount) {
+      let dist = Math.hypot(...[2, 6, 10].map((k) => lastProj[k] - viewProj[k]));
+      if (dist < 0.01) return;
+    } else {
+      lastVertexCount = vertexCount;
+    }
 
-          const program = attachShaders(gl, vertexShaderSource, fragmentShaderSource);
+    console.time("sort");
+    let maxDepth = -Infinity;
+    let minDepth = Infinity;
+    let sizeList = new Int32Array(vertexCount);
+    for (let i = 0; i < vertexCount; i++) {
+      let depth = ((viewProj[2] * positions[3 * i + 0] + viewProj[6] * positions[3 * i + 1] + viewProj[10] * positions[3 * i + 2]) * 4096) | 0;
+      sizeList[i] = depth;
+      if (depth > maxDepth) maxDepth = depth;
+      if (depth < minDepth) minDepth = depth;
+    }
 
-          const a_position = gl.getAttribLocation(program, 'position');
-          const a_index = gl.getAttribLocation(program, 'index');
-          const u_projection = gl.getUniformLocation(program, 'projection');
-          const u_view = gl.getUniformLocation(program, 'view');
-          const u_focal = gl.getUniformLocation(program, 'focal');
-          const u_viewport = gl.getUniformLocation(program, 'viewport');
-          const u_time = gl.getUniformLocation(program, 'time');
-          const u_texture = gl.getUniformLocation(program, 'u_texture');
+    // This is a 16 bit single-pass counting sort
+    let depthInv = (256 * 256) / (maxDepth - minDepth);
+    let counts0 = new Uint32Array(256 * 256);
+    for (let i = 0; i < vertexCount; i++) {
+      sizeList[i] = ((sizeList[i] - minDepth) * depthInv) | 0;
+      counts0[sizeList[i]]++;
+    }
+    let starts0 = new Uint32Array(256 * 256);
+    for (let i = 1; i < 256 * 256; i++) starts0[i] = starts0[i - 1] + counts0[i - 1];
+    let depthIndex = new Uint32Array(vertexCount);
+    for (let i = 0; i < vertexCount; i++) depthIndex[starts0[sizeList[i]]++] = i;
 
-          gl.enable(gl.BLEND);
-          gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+    console.timeEnd("sort");
 
-          const vao = gl.createVertexArray();
-          gl.bindVertexArray(vao);
+    lastProj = viewProj;
+    self.postMessage({ depthIndex, viewProj, vertexCount }, [depthIndex.buffer]);
+  }
 
-          const positionBuffer = gl.createBuffer();
-          gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-          gl.enableVertexAttribArray(a_position);
-          gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
-
-          const indexBuffer = gl.createBuffer();
-          gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-          gl.enableVertexAttribArray(a_index);
-          gl.vertexAttribIPointer(a_index, 1, gl.INT, 0, 0);
-          gl.vertexAttribDivisor(a_index, 1);
-
-          gl.bindVertexArray(null);
-
-          const worker = new Worker(URL.createObjectURL(new Blob(["(" + createWorker.toString() + ")(self)"], { type: 'application/javascript' })));
-
-          worker.onmessage = (e) => {
-            if (e.data.depthIndex) {
-              vertexCount = e.data.depthIndex.length;
-              gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-              gl.bufferData(gl.ARRAY_BUFFER, e.data.depthIndex, gl.DYNAMIC_DRAW);
-              document.getElementById('info').innerHTML = `
-                <p>Time: ${(e.data.viewProj[14] % 16).toFixed(2)}s / 16.00s</p>
-                <p>Gaussians: ${vertexCount.toLocaleString()}</p>
-              `;
-            }
-          };
-
-          const texture = gl.createTexture();
-          gl.bindTexture(gl.TEXTURE_2D, texture);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-          gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-          gl.uniform1i(u_texture, 0);
-
-          // Load the specific .splatv file
-          const url = './data/test401.splatv';
-          const req = await fetch(url);
-          const reader = req.body.getReader();
-
-          const chunks = [{ size: 8, type: "magic" }];
-          await readChunks(reader, chunks, (chunk, buffer, remaining, chunks) => {
-            if (remaining) return;
-            if (chunk.type === "magic") {
-              const intView = new Int32Array(buffer);
-              if (intView[0] !== 0x674b) throw new Error("Invalid splatv file");
-              chunks.push({ size: intView[1], type: "chunks" });
-            } else if (chunk.type === "chunks") {
-              const splatChunks = JSON.parse(new TextDecoder("utf-8").decode(new Uint8Array(buffer)));
-              if (splatChunks.length === 0) throw new Error("Invalid splatv file");
-              if (splatChunks.length > 1) console.warn("Splatv file contains more than one chunk, only the first one will be loaded");
-              const splatChunk = splatChunks[0];
-              chunks.push(splatChunk);
-            } else if (chunk.type === "splat") {
-              const texdata = new Uint32Array(buffer);
-              gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32UI, chunk.texwidth, chunk.texheight, 0, gl.RGBA_INTEGER, gl.UNSIGNED_INT, texdata);
-              worker.postMessage({ texture: true, texwidth: chunk.texwidth, texheight: chunk.texheight });
-            }
-          });
-
-          session.requestAnimationFrame(onXRFrame);
-
-          function onXRFrame(t, frame) {
-            const session = frame.session;
-            const pose = frame.getViewerPose(refSpace);
-            if (!pose) return;
-
-            const glLayer = session.renderState.baseLayer;
-            gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
-            // Linear time over 16 seconds
-            const totalDuration = 16;
-            const currentTime = (Date.now() / 1000) % totalDuration;
-            gl.uniform1f(u_time, currentTime);
-
-            for (let view of pose.views) {
-              const viewport = glLayer.getViewport(view);
-              gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-
-              const projectionMatrix = view.projectionMatrix;
-              gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
-              gl.uniform2fv(u_viewport, [viewport.width, viewport.height]);
-              gl.uniform2fv(u_focal, [(projectionMatrix[0] * viewport.width) / 2, -(projectionMatrix[5] * viewport.height) / 2]);
-
-              const viewMatrix = multiply4(view.transform.inverse.matrix, worldTransform);
-              gl.uniformMatrix4fv(u_view, false, viewMatrix);
-
-              gl.bindVertexArray(vao);
-              gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, vertexCount);
-              gl.bindVertexArray(null);
-
-              const viewProj = multiply4(projectionMatrix, viewMatrix);
-              worker.postMessage({ view: viewProj });
-            }
-
-            session.requestAnimationFrame(onXRFrame);
-          }
+  const throttledSort = () => {
+    if (!sortRunning) {
+      sortRunning = true;
+      let lastView = viewProj;
+      runSort(lastView);
+      setTimeout(() => {
+        sortRunning = false;
+        if (lastView !== viewProj) {
+          throttledSort();
         }
+      }, 0);
+    }
+  };
 
-        main().catch(console.error);
+  self.onmessage = (e) => {
+    if (e.data.view) {
+      viewProj = e.data.view;
+      throttledSort();
+    } else if (e.data.positions) {
+      positions = e.data.positions;
+      vertexCount = positions.length / 3;
+      lastVertexCount = 0;
+    }
+  };
+}
+
+const worker = new Worker(URL.createObjectURL(new Blob(["(" + createWorker.toString() + ")(self)"], { type: 'application/javascript' })));
+
+worker.onmessage = (e) => {
+  if (e.data.depthIndex) {
+    vertexCount = e.data.depthIndex.length;
+    gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, e.data.depthIndex, gl.DYNAMIC_DRAW);
+    const timeEl = document.querySelector('#info p:first-child');
+    timeEl.textContent = `Time: ${(e.data.viewProj[14] % 16).toFixed(2)}s / 16.00s`;
+    const gaussiansEl = document.querySelector('#info p:last-child');
+    gaussiansEl.textContent = `Gaussians: ${vertexCount.toLocaleString()}`;
+  }
+};
+
+async function main() {
+  if (!navigator.xr) {
+    alert('WebXR not supported!');
+    return;
+  }
+
+  const session = await navigator.xr.requestSession('immersive-ar', {
+    optionalFeatures: ['dom-overlay'],
+    domOverlay: { root: document.documentElement }
+  });
+
+  const canvas = document.createElement('canvas');
+  gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
+  session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+
+  refSpace = await session.requestReferenceSpace('local');
+
+  const program = attachShaders(gl, vertexShaderSource, fragmentShaderSource);
+
+  const a_position = gl.getAttribLocation(program, 'position');
+  const a_index = gl.getAttribLocation(program, 'index');
+  const u_projection = gl.getUniformLocation(program, 'projection');
+  const u_view = gl.getUniformLocation(program, 'view');
+  const u_focal = gl.getUniformLocation(program, 'focal');
+  const u_viewport = gl.getUniformLocation(program, 'viewport');
+  const u_time = gl.getUniformLocation(program, 'time');
+  const u_texture = gl.getUniformLocation(program, 'u_texture');
+
+  gl.enable(gl.BLEND);
+  gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+
+  const positionBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(a_position);
+  gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+
+  const indexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
+  gl.enableVertexAttribArray(a_index);
+  gl.vertexAttribIPointer(a_index, 1, gl.INT, 0, 0);
+  gl.vertexAttribDivisor(a_index, 1);
+
+  gl.bindVertexArray(null);
+
+  const texture = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.uniform1i(u_texture, 0);
+
+  // Load the specific .splatv file
+  const url = './data/test401.splatv';
+  const req = await fetch(url);
+  if (!req.ok) {
+    alert('Failed to load .splatv file');
+    return;
+  }
+  const reader = req.body.getReader();
+
+  const chunks = [{ size: 8, type: "magic" }];
+  let vertexCount = 0;
+  let positions = [];
+
+  await readChunks(reader, chunks, (chunk, buffer, remaining, chunks) => {
+    if (remaining) return;
+    if (chunk.type === "magic") {
+      const intView = new Int32Array(buffer);
+      if (intView[0] !== 0x674b) throw new Error("Invalid splatv file");
+      chunks.push({ size: intView[1], type: "chunks" });
+    } else if (chunk.type === "chunks") {
+      const splatChunks = JSON.parse(new TextDecoder("utf-8").decode(new Uint8Array(buffer)));
+      if (splatChunks.length === 0) throw new Error("Invalid splatv file");
+      if (splatChunks.length > 1) console.warn("Splatv file contains more than one chunk, only the first one will be loaded");
+      const splatChunk = splatChunks[0];
+      chunks.push(splatChunk);
+    } else if (chunk.type === "splat") {
+      const texdata = new Uint32Array(buffer);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32UI, chunk.texwidth, chunk.texheight, 0, gl.RGBA_INTEGER, gl.UNSIGNED_INT, texdata);
+      vertexCount = (chunk.texwidth * chunk.texheight) / 4; // 4 texels per gaussian
+      positions = new Float32Array(vertexCount * 3);
+      // Extract positions for sorting
+      for (let i = 0; i < vertexCount; i++) {
+        const row = Math.floor(i / 1024);
+        const col = (i % 1024) * 4;
+        const texelOffset = (row * chunk.texwidth + col) * 4;
+        positions[i * 3 + 0] = uintBitsToFloat(texdata[texelOffset + 0]);
+        positions[i * 3 + 1] = uintBitsToFloat(texdata[texelOffset + 1]);
+        positions[i * 3 + 2] = uintBitsToFloat(texdata[texelOffset + 2]);
+      }
+      worker.postMessage({ positions: positions });
+      document.getElementById('spinner').style.display = 'none';
+      document.getElementById('enter').style.display = 'block';
+    }
+  });
+
+  function uintBitsToFloat(bits) {
+    _floatView[0] = bits;
+    return _floatView[0];
+  }
+
+  function onXRFrame(t, frame) {
+    const session = frame.session;
+    const pose = frame.getViewerPose(refSpace);
+    if (!pose) return;
+
+    const glLayer = session.renderState.baseLayer;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Linear time over 16 seconds
+    const totalDuration = 16;
+    const currentTime = (Date.now() / 1000) % totalDuration;
+    gl.uniform1f(u_time, currentTime);
+
+    for (let view of pose.views) {
+      const viewport = glLayer.getViewport(view);
+      gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+      const projectionMatrix = view.projectionMatrix;
+      gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
+      gl.uniform2fv(u_viewport, [viewport.width, viewport.height]);
+      gl.uniform2fv(u_focal, [(projectionMatrix[0] * viewport.width) / 2, -(projectionMatrix[5] * viewport.height) / 2]);
+
+      const viewMatrix = multiply4(view.transform.inverse.matrix, worldTransform);
+      gl.uniformMatrix4fv(u_view, false, viewMatrix);
+
+      gl.bindVertexArray(vao);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, vertexCount);
+      gl.bindVertexArray(null);
+
+      const viewProj = multiply4(projectionMatrix, viewMatrix);
+      worker.postMessage({ view: viewProj });
+    }
+
+    session.requestAnimationFrame(onXRFrame);
+  }
+
+  document.getElementById("enter").onclick = () => {
+    session.requestAnimationFrame(onXRFrame);
+  };
+}
+
+main().catch(console.error);
+
     </script>
 </body>
 </html>
