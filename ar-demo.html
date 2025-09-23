@@ -207,25 +207,16 @@
         function debugLog(message) {
             console.log('[DEBUG]', message);
             const debug = document.getElementById('debug');
-            debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
-            debug.scrollTop = debug.scrollHeight;
+            if (debug) {
+                debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
+                debug.scrollTop = debug.scrollHeight;
+            }
         }
 
         debugLog('Script started');
 
-        // Import gsplat.js with error handling
-        let SPLAT;
-        try {
-            debugLog('Importing gsplat.js...');
-            SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
-            debugLog('gsplat.js imported successfully');
-        } catch (error) {
-            debugLog(`Failed to import gsplat.js: ${error.message}`);
-            updateStatus('Failed to load gsplat.js library', 'error');
-            document.getElementById('loading').classList.add('hidden');
-        }
-
         // Global variables
+        let SPLAT = null;
         let scene, camera, renderer;
         let currentSplatv = null;
         let isPlaying = false;
@@ -240,6 +231,26 @@
         const myTestBtn = document.getElementById('myTestBtn');
         const exampleBtn = document.getElementById('exampleBtn');
         const playBtn = document.getElementById('playBtn');
+
+        // Import gsplat.js with proper error handling
+        async function loadGsplat() {
+            try {
+                debugLog('Importing gsplat.js...');
+                updateLoadingText('Loading gsplat.js library...');
+                
+                SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
+                debugLog('gsplat.js imported successfully');
+                debugLog(`Available classes: ${Object.keys(SPLAT).join(', ')}`);
+                
+                return true;
+            } catch (error) {
+                debugLog(`Failed to import gsplat.js: ${error.message}`);
+                console.error('gsplat.js import failed:', error);
+                updateStatus('Failed to load gsplat.js library', 'error');
+                loading.classList.add('hidden');
+                return false;
+            }
+        }
 
         // Initialize gsplat.js scene
         async function initGsplat() {
@@ -382,6 +393,10 @@
 
         // Load functions
         async function loadMyTestFile() {
+            if (!SPLAT) {
+                updateStatus('GSplat not loaded yet', 'error');
+                return;
+            }
             await loadSplatvFile(
                 'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/test401.splatv',
                 'test401.splatv'
@@ -389,6 +404,10 @@
         }
 
         async function loadWorkingExample() {
+            if (!SPLAT) {
+                updateStatus('GSplat not loaded yet', 'error');
+                return;
+            }
             await loadSplatvFile(
                 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv',
                 'flame.splatv'
@@ -450,13 +469,15 @@
 
         // Utility functions
         function updateStatus(message, type = '') {
-            status.textContent = message;
-            status.className = `status ${type}`;
+            if (status) {
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
             debugLog(`Status: ${message}`);
             
             if (type === 'success') {
                 setTimeout(() => {
-                    if (status.classList.contains('success')) {
+                    if (status && status.classList.contains('success')) {
                         status.className = 'status';
                     }
                 }, 3000);
@@ -464,7 +485,9 @@
         }
 
         function updateLoadingText(text) {
-            loadingText.textContent = text;
+            if (loadingText) {
+                loadingText.textContent = text;
+            }
             debugLog(`Loading: ${text}`);
         }
 
@@ -482,15 +505,36 @@
         window.togglePlayback = togglePlayback;
         window.startAR = startAR;
 
-        // Initialize when ready
-        debugLog('Setting up initialization');
-        setTimeout(() => {
-            debugLog('Starting initialization');
-            initGsplat().catch(error => {
-                debugLog(`Init catch: ${error.message}`);
-                console.error('Initialization error:', error);
+        // Main initialization function
+        async function main() {
+            debugLog('Starting main initialization');
+            
+            // Load gsplat.js first
+            const loaded = await loadGsplat();
+            if (!loaded) {
+                return;
+            }
+            
+            // Then initialize
+            await initGsplat();
+        }
+
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                debugLog('DOM ready, starting main');
+                main().catch(error => {
+                    debugLog(`Main error: ${error.message}`);
+                    console.error('Main initialization error:', error);
+                });
             });
-        }, 100);
+        } else {
+            debugLog('DOM already ready, starting main');
+            main().catch(error => {
+                debugLog(`Main error: ${error.message}`);
+                console.error('Main initialization error:', error);
+            });
+        }
 
     </script>
 
