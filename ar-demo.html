@@ -150,7 +150,7 @@
         const resetBtn = document.getElementById("reset-btn");
         const arInstructions = document.getElementById("ar-instructions");
 
-        // Vertex shader source (from hybrid.js/splatxr.js)
+        // Vertex shader source
         const vertexShaderSource = `#version 300 es
         precision highp float;
         precision highp int;
@@ -313,12 +313,10 @@
             const workerCode = `
                 let buffer;
                 let vertexCount = 0;
-                const rowLength = 3 * 4 + 3 * 4 + 4 + 4;
 
                 self.onmessage = function (e) {
                     if (e.data.texture) {
                         buffer = e.data.texture;
-                        const sizeList = new Int32Array(e.data.texture.length / 4);
                         vertexCount = e.data.texture.length / 16;
                         postMessage({ vertexCount: vertexCount });
                     } else if (e.data.viewProj) {
@@ -328,9 +326,9 @@
                         const sizeList = new Int32Array(vertexCount);
 
                         for (let i = 0; i < vertexCount; i++) {
-                            const o0 = buffer[i * 4 + 0];
-                            const o1 = buffer[i * 4 + 1]; 
-                            const o2 = buffer[i * 4 + 2];
+                            const o0 = buffer[i * 16 + 0];
+                            const o1 = buffer[i * 16 + 1]; 
+                            const o2 = buffer[i * 16 + 2];
 
                             const x = (o0 & 0xFFFFu) * (2 / 65535) - 1;
                             const y = ((o0 >> 16) & 0xFFFFu) * (2 / 65535) - 1;
@@ -363,180 +361,7 @@
                     gl.bufferData(gl.ARRAY_BUFFER, depthIndex, gl.DYNAMIC_DRAW);
                     vertexCount = e.data.vertexCount;
                 }
-            }
-
-            // Render for each view
-            for (const view of pose.views) {
-                const viewport = layer.getViewport(view);
-                gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
-
-                const projectionMatrix = view.projectionMatrix;
-                const viewMatrix = view.transform.inverse.matrix;
-
-                // Apply world transform for model placement
-                const transformedView = multiply4(viewMatrix, worldTransform);
-
-                // Update uniforms
-                const u_projection = gl.getUniformLocation(program, "projection");
-                const u_viewport = gl.getUniformLocation(program, "viewport");
-                const u_focal = gl.getUniformLocation(program, "focal");
-                const u_view = gl.getUniformLocation(program, "view");
-
-                gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
-                gl.uniform2fv(u_viewport, new Float32Array([viewport.width, viewport.height]));
-                gl.uniform2fv(u_focal, new Float32Array([
-                    (projectionMatrix[0] * viewport.width) / 2,
-                    -(projectionMatrix[5] * viewport.height) / 2
-                ]));
-                gl.uniformMatrix4fv(u_view, false, transformedView);
-
-                // Render if model is placed
-                if (isModelPlaced && vertexCount > 0) {
-                    worker.postMessage({ viewProj: transformedView });
-                    renderFrame();
-                }
-            }
-
-            session.requestAnimationFrame(onARFrame);
-        }
-
-        // Matrix multiplication helper
-        function multiply4(a, b) {
-            const result = new Float32Array(16);
-            for (let i = 0; i < 4; i++) {
-                for (let j = 0; j < 4; j++) {
-                    result[i * 4 + j] = 0;
-                    for (let k = 0; k < 4; k++) {
-                        result[i * 4 + j] += a[i * 4 + k] * b[k * 4 + j];
-                    }
-                }
-            }
-            return result;
-        }
-
-        // Reset view to default
-        function resetView() {
-            if (!isARMode) {
-                worldTransform = [0.99, -0.05, 0.16, 0, -0.05, -1, -0.05, 0, 0.16, 0.04, -0.99, 0, -0.08, 1.63, -0.1, 1];
-                if (camera) {
-                    viewMatrix = getViewMatrix(camera);
-                }
-            }
-        }
-
-        // Get view matrix from camera
-        function getViewMatrix(camera) {
-            // Create view matrix from camera position and rotation
-            const position = camera.position || [0, 0, 5];
-            const target = [0, 0, 0];
-            const up = [0, 1, 0];
-            
-            return lookAt(position, target, up);
-        }
-
-        // Look-at matrix helper
-        function lookAt(eye, center, up) {
-            const f = normalize(subtract(center, eye));
-            const s = normalize(cross(f, up));
-            const u = cross(s, f);
-
-            return new Float32Array([
-                s[0], u[0], -f[0], 0,
-                s[1], u[1], -f[1], 0,
-                s[2], u[2], -f[2], 0,
-                -dot(s, eye), -dot(u, eye), dot(f, eye), 1
-            ]);
-        }
-
-        // Vector math helpers
-        function subtract(a, b) {
-            return [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-        }
-
-        function normalize(v) {
-            const len = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
-            return [v[0] / len, v[1] / len, v[2] / len];
-        }
-
-        function cross(a, b) {
-            return [
-                a[1] * b[2] - a[2] * b[1],
-                a[2] * b[0] - a[0] * b[2],
-                a[0] * b[1] - a[1] * b[0]
-            ];
-        }
-
-        function dot(a, b) {
-            return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-        }
-
-        // Render single frame
-        function renderFrame() {
-            if (!gl || !program || vertexCount <= 0) return;
-
-            // Setup vertex attributes
-            const positionAttribute = gl.getAttribLocation(program, "position");
-            const indexAttribute = gl.getAttribLocation(program, "index");
-
-            gl.enableVertexAttribArray(positionAttribute);
-            gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-            gl.vertexAttribPointer(positionAttribute, 2, gl.FLOAT, false, 0, 0);
-
-            gl.enableVertexAttribArray(indexAttribute);
-            gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-            gl.vertexAttribIPointer(indexAttribute, 1, gl.INT, 0, 0);
-            gl.vertexAttribDivisor(indexAttribute, 1);
-
-            // Render instanced
-            gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
-        }
-
-        // Main render loop for non-AR mode
-        function startRenderLoop() {
-            function render() {
-                if (!isARMode && vertexCount > 0) {
-                    // Setup viewport
-                    gl.viewport(0, 0, canvas.width, canvas.height);
-                    gl.clearColor(0, 0, 0, 1);
-                    gl.clear(gl.COLOR_BUFFER_BIT);
-
-                    // Calculate animation time
-                    const animTime = isPlaying ? (performance.now() - animationStartTime) / 1000 : 0;
-                    const u_time = gl.getUniformLocation(program, "time");
-                    gl.uniform1f(u_time, animTime);
-
-                    // Update view matrix
-                    const u_view = gl.getUniformLocation(program, "view");
-                    gl.uniformMatrix4fv(u_view, false, viewMatrix);
-
-                    // Update sorting
-                    if (camera) {
-                        const projectionMatrix = getProjectionMatrix(
-                            (camera.fx / 1) * canvas.width / camera.width,
-                            (camera.fy / 1) * canvas.height / camera.height,
-                            canvas.width,
-                            canvas.height
-                        );
-                        
-                        const viewProj = multiply4(projectionMatrix, viewMatrix);
-                        worker.postMessage({ viewProj: viewProj });
-                    }
-
-                    // Render frame
-                    renderFrame();
-                }
-                
-                requestAnimationFrame(render);
-            }
-            
-            requestAnimationFrame(render);
-        }
-
-        // Initialize the application
-        init().catch(console.error);
-    </script>
-</body>
-</html>;
+            };
         }
 
         // Load splatv file using the same method as hybrid.js
@@ -561,7 +386,7 @@
                 }
 
                 if (!remaining && chunk.type === "magic") {
-                    let intView = new Uint32Array(buffer);
+                    let intView = new Uint32Array(buffer.buffer);
                     if (intView[0] !== 0x674b) throw new Error("This does not look like a splatv file");
                     chunks.push({ size: intView[1], type: "chunks" });
                 } else if (!remaining && chunk.type === "chunks") {
@@ -711,7 +536,6 @@
                     const deltaX = e.clientX - lastMouseX;
                     const deltaY = e.clientY - lastMouseY;
                     
-                    // Simple orbit controls
                     rotateView(deltaX * 0.01, deltaY * 0.01);
                     
                     lastMouseX = e.clientX;
@@ -744,16 +568,26 @@
 
         // Simple view rotation
         function rotateView(deltaX, deltaY) {
-            // This is a simplified rotation - you might want more sophisticated controls
-            worldTransform[0] = Math.cos(deltaX);
-            worldTransform[2] = Math.sin(deltaX);
-            worldTransform[8] = -Math.sin(deltaX);
-            worldTransform[10] = Math.cos(deltaX);
+            // Basic rotation matrix manipulation
+            const cosX = Math.cos(deltaX);
+            const sinX = Math.sin(deltaX);
+            const cosY = Math.cos(deltaY);
+            const sinY = Math.sin(deltaY);
+            
+            // Apply horizontal rotation
+            const m00 = worldTransform[0] * cosX - worldTransform[8] * sinX;
+            const m08 = worldTransform[0] * sinX + worldTransform[8] * cosX;
+            const m02 = worldTransform[2] * cosX - worldTransform[10] * sinX;
+            const m10 = worldTransform[2] * sinX + worldTransform[10] * cosX;
+            
+            worldTransform[0] = m00;
+            worldTransform[8] = m08;
+            worldTransform[2] = m02;
+            worldTransform[10] = m10;
         }
 
         // Simple view zoom
         function zoomView(delta) {
-            // Simple zoom by adjusting translation
             worldTransform[14] += delta;
         }
 
@@ -860,3 +694,12 @@
                     const hit = hitTestResults[0];
                     const hitPose = hit.getPose(pose.transform);
                     worldTransform = Array.from(hitPose.transform.matrix);
+                }
+            }
+
+            // Render for each view
+            for (const view of pose.views) {
+                const viewport = layer.getViewport(view);
+                gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+                const projectionMatrix = view.projectionMatrix;
