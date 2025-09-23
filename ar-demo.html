@@ -2,435 +2,497 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🎭 4DVV .splatv AR - 4D Gaussian Splatting</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GSplat AR Animation Demo</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
-        #controls { position: absolute; top: 10px; left: 10px; z-index: 10; }
-        button { margin: 5px; padding: 8px 12px; }
-        #info { position: absolute; bottom: 10px; left: 10px; z-index: 10; color: white; background: rgba(0,0,0,0.5); padding: 10px; }
-        #spinner { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
-        #enter { display: none; }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #000;
+            overflow: hidden;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #progress-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: white;
+            z-index: 100;
+        }
+
+        #progress-bar {
+            width: 300px;
+            height: 4px;
+            background-color: #333;
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 20px auto;
+        }
+
+        #progress-fill {
+            width: 0%;
+            height: 100%;
+            background-color: #4CAF50;
+            transition: width 0.3s ease;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: none;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 24px;
+            margin: 0 10px;
+            border-radius: 25px;
+            font-size: 16px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .control-btn.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        #ar-instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px 25px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            display: none;
+            z-index: 100;
+        }
+
+        #preview-model {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            display: none;
+            z-index: 50;
+            backdrop-filter: blur(5px);
+        }
+
+        .status-text {
+            color: #fff;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
-    <div id="spinner">Loading gsplat.js VideoRenderProgram...</div>
-    <button id="enter">Enter AR</button>
+    <canvas id="canvas"></canvas>
+    
+    <div id="progress-container">
+        <div>Loading GSplat Animation...</div>
+        <div id="progress-bar">
+            <div id="progress-fill"></div>
+        </div>
+        <div class="status-text" id="status-text">Initializing...</div>
+    </div>
 
     <div id="controls">
-        <div>
-            <button>📁 Load</button>
-            <button>🧪 Original</button>
-            <button>🔧 Fixed</button>
-            <button>✅ Example</button>
-            <button>⬇️ Download</button>
-        </div>
-        <div>
-            <button>▶️ Play</button>
-            <button>🚀 AR</button>
+        <button class="control-btn" id="play-btn">Play</button>
+        <button class="control-btn" id="ar-btn">Start AR</button>
+        <button class="control-btn" id="reset-btn">Reset View</button>
+    </div>
+
+    <div id="ar-instructions">
+        <div>Point your camera at the floor and tap to place the model</div>
+    </div>
+
+    <div id="preview-model">
+        <div style="text-align: center; line-height: 196px; color: rgba(255,255,255,0.7);">
+            Preview Model
         </div>
     </div>
 
-    <div id="info">
-        <p>Time: 0.00s / 16.00s</p>
-        <p>Gaussians: 0</p>
-    </div>
+    <script type="module">
+        import { 
+            Scene, 
+            Camera, 
+            WebGLRenderer, 
+            VideoRenderProgram,
+            SplatvLoader, 
+            Splatv,
+            OrbitControls 
+        } from "https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js";
 
-    <script>
-        let refSpace;
-        let gl;
+        // Global variables
+        let scene, camera, renderer, controls;
+        let splatvData = null;
+        let isPlaying = false;
+        let isARMode = false;
+        let arSession = null;
+        let arHitTestSource = null;
+        let isModelPlaced = false;
+        let modelTransform = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        let animationStartTime = 0;
+        const targetFPS = 25;
+        const frameDuration = 1000 / targetFPS; // 40ms per frame
 
-        let worldTransform = [0.99, -0.05, 0.16, 0, -0.05, -1, -0.05, 0, 0.16, 0.04, -0.99, 0, -0.08, 1.63, -0.1, 1];
+        // DOM elements
+        const canvas = document.getElementById("canvas");
+        const progressContainer = document.getElementById("progress-container");
+        const progressFill = document.getElementById("progress-fill");
+        const statusText = document.getElementById("status-text");
+        const controls = document.getElementById("controls");
+        const playBtn = document.getElementById("play-btn");
+        const arBtn = document.getElementById("ar-btn");
+        const resetBtn = document.getElementById("reset-btn");
+        const arInstructions = document.getElementById("ar-instructions");
+        const previewModel = document.getElementById("preview-model");
 
-        const params = new URLSearchParams(location.search);
-        try {
-          worldTransform = JSON.parse(decodeURIComponent(location.hash.slice(1)));
-        } catch (err) {}
+        // Initialize the application
+        async function init() {
+            try {
+                statusText.textContent = "Setting up renderer...";
+                
+                // Create scene and camera
+                scene = new Scene();
+                camera = new Camera();
+                
+                // Setup camera for non-AR view
+                camera.data.setSize(canvas.clientWidth, canvas.clientHeight);
+                camera.position.set(0, 1, 3);
 
-        const vertexShaderSource = `
-          #version 300 es
-          precision highp float;
-          precision highp int;
-          
-          uniform highp usampler2D u_texture;
-          uniform mat4 projection, view;
-          uniform vec2 focal;
-          uniform vec2 viewport;
-          uniform float time;
-          
-          in vec2 position;
-          in int index;
-          
-          out vec4 vColor;
-          out vec2 vPosition;
-          
-          void main () {
-              gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+                // Create renderer with VideoRenderProgram for splatv animation
+                renderer = new WebGLRenderer(canvas, camera, scene);
+                renderer.renderProgram = new VideoRenderProgram(renderer, camera, scene);
 
-              uvec4 motion1 = texelFetch(u_texture, ivec2(((uint(index) & 0x3ffu) << 2) | 3u, uint(index) >> 10), 0);
-              vec2 trbf = unpackHalf2x16(motion1.w);
-              float dt = time - trbf.x;
-
-              float topacity = exp(-1.0 * pow(dt / trbf.y, 2.0));
-              if(topacity < 0.02) return;
-
-              uvec4 motion0 = texelFetch(u_texture, ivec2(((uint(index) & 0x3ffu) << 2) | 2u, uint(index) >> 10), 0);
-              uvec4 static0 = texelFetch(u_texture, ivec2(((uint(index) & 0x3ffu) << 2), uint(index) >> 10), 0);
-
-              vec2 m0 = unpackHalf2x16(motion0.x), m1 = unpackHalf2x16(motion0.y), m2 = unpackHalf2x16(motion0.z), 
-                   m3 = unpackHalf2x16(motion0.w), m4 = unpackHalf2x16(motion1.x); 
-              
-              vec4 trot = vec4(unpackHalf2x16(motion1.y).xy, unpackHalf2x16(motion1.z).xy) * dt;
-              vec3 tpos = (vec3(m0.xy, m1.x) * dt + vec3(m1.y, m2.xy) * dt*dt + vec3(m3.xy, m4.x) * dt*dt*dt);
-              
-              vec4 cam = view * vec4(uintBitsToFloat(static0.xyz) + tpos, 1);
-              vec4 pos = projection * cam;
-          
-              float clip = 1.2 * pos.w;
-              if (pos.z < -clip || pos.x < -clip || pos.x > clip || pos.y < -clip || pos.y > clip) return;
-              uvec4 static1 = texelFetch(u_texture, ivec2(((uint(index) & 0x3ffu) << 2) | 1u, uint(index) >> 10), 0);
-
-              vec4 rot = vec4(unpackHalf2x16(static0.w).xy, unpackHalf2x16(static1.x).xy) + trot;
-              vec3 scale = vec3(unpackHalf2x16(static1.y).xy, unpackHalf2x16(static1.z).x);
-              rot /= sqrt(dot(rot, rot));
-          
-              mat3 S = mat3(scale.x, 0.0, 0.0, 0.0, scale.y, 0.0, 0.0, 0.0, scale.z);
-              mat3 R = mat3(
-                1.0 - 2.0 * (rot.z * rot.z + rot.w * rot.w), 2.0 * (rot.y * rot.z - rot.x * rot.w), 2.0 * (rot.y * rot.w + rot.x * rot.z),
-                2.0 * (rot.y * rot.z + rot.x * rot.w), 1.0 - 2.0 * (rot.y * rot.y + rot.w * rot.w), 2.0 * (rot.z * rot.w - rot.x * rot.y),
-                2.0 * (rot.y * rot.w - rot.x * rot.z), 2.0 * (rot.z * rot.w + rot.x * rot.y), 1.0 - 2.0 * (rot.y * rot.y + rot.z * rot.z));
-              mat3 M = S * R;
-              mat3 Vrk = 4.0 * transpose(M) * M;
-              mat3 J = mat3(
-                focal.x / cam.z, 0., -(focal.x * cam.x) / (cam.z * cam.z), 
-                0., -focal.y / cam.z, (focal.y * cam.y) / (cam.z * cam.z), 
-                0., 0., 0.
-            );
-          
-              mat3 T = transpose(mat3(view)) * J;
-              mat3 cov2d = transpose(T) * Vrk * T;
-          
-              float mid = (cov2d[0][0] + cov2d[1][1]) / 2.0;
-              float radius = length(vec2((cov2d[0][0] - cov2d[1][1]) / 2.0, cov2d[0][1]));
-              float lambda1 = mid + radius, lambda2 = mid - radius;
-          
-              if(lambda2 < 0.0) return;
-              vec2 diagonalVector = normalize(vec2(cov2d[0][1], lambda1 - cov2d[0][0]));
-              vec2 majorAxis = min(sqrt(2.0 * lambda1), 1024.0) * diagonalVector;
-              vec2 minorAxis = min(sqrt(2.0 * lambda2), 1024.0) * vec2(diagonalVector.y, -diagonalVector.x);
-              
-              uint rgba = static1.w;
-              vColor = 
-                clamp(pos.z/pos.w+1.0, 0.0, 1.0) * 
-                vec4(1.0, 1.0, 1.0, topacity) *
-                vec4(
-                  (rgba) & 0xffu, 
-                  (rgba >> 8) & 0xffu, 
-                  (rgba >> 16) & 0xffu, 
-                  (rgba >> 24) & 0xffu) / 255.0;
-
-              vec2 vCenter = vec2(pos) / pos.w;
-              gl_Position = vec4(
-                  vCenter 
-                  + position.x * majorAxis / viewport 
-                  + position.y * minorAxis / viewport, 0.0, 1.0);
-
-              vPosition = position;
-          }
-          `.trim();
-
-        const fragmentShaderSource = `
-          #version 300 es
-          precision highp float;
-          
-          in vec4 vColor;
-          in vec2 vPosition;
-          
-          out vec4 fragColor;
-          
-          void main () {
-              float A = -dot(vPosition, vPosition);
-              if (A < -4.0) discard;
-              float B = exp(A) * vColor.a;
-              fragColor = vec4(B * vColor.rgb, B);
-          }
-          
-          `.trim();
-
-        const vertices = [
-          -2.0, -2.0,
-          2.0, -2.0,
-          0.0,  2.0
-        ];
-
-        function createWorker(self) {
-  let lastProj;
-  let positions;
-  let viewProj;
-  let vertexCount;
-  let lastVertexCount;
-  let sortRunning = false;
-  var _floatView = new Float32Array(1);
-  var _int32View = new Int32Array(_floatView.buffer);
-
-  function floatToHalf(float) {
-    _floatView[0] = float;
-    var f = _int32View[0];
-    var sign = (f >> 31) & 0x0001;
-    var exp = (f >> 23) & 0x00ff;
-    var frac = f & 0x007fffff;
-    var newExp;
-    if (exp == 0) {
-      newExp = 0;
-    } else if (exp < 113) {
-      newExp = 0;
-      frac |= 0x00800000;
-      frac = frac >> (113 - exp);
-      if (frac & 0x01000000) {
-        newExp = 1;
-        frac = 0;
-      }
-    } else if (exp < 142) {
-      newExp = exp - 112;
-    } else {
-      newExp = 31;
-      frac = 0;
-    }
-    return (sign << 15) | (newExp << 10) | (frac >> 13);
-  }
-
-  function packHalf2x16(x, y) {
-    return (floatToHalf(x) | (floatToHalf(y) << 16)) >>> 0;
-  }
-
-  function runSort(viewProj) {
-    if (!positions) return;
-    if (lastVertexCount == vertexCount) {
-      let dist = Math.hypot(...[2, 6, 10].map((k) => lastProj[k] - viewProj[k]));
-      if (dist < 0.01) return;
-    } else {
-      lastVertexCount = vertexCount;
-    }
-
-    console.time("sort");
-    let maxDepth = -Infinity;
-    let minDepth = Infinity;
-    let sizeList = new Int32Array(vertexCount);
-    for (let i = 0; i < vertexCount; i++) {
-      let depth = ((viewProj[2] * positions[3 * i + 0] + viewProj[6] * positions[3 * i + 1] + viewProj[10] * positions[3 * i + 2]) * 4096) | 0;
-      sizeList[i] = depth;
-      if (depth > maxDepth) maxDepth = depth;
-      if (depth < minDepth) minDepth = depth;
-    }
-
-    // This is a 16 bit single-pass counting sort
-    let depthInv = (256 * 256) / (maxDepth - minDepth);
-    let counts0 = new Uint32Array(256 * 256);
-    for (let i = 0; i < vertexCount; i++) {
-      sizeList[i] = ((sizeList[i] - minDepth) * depthInv) | 0;
-      counts0[sizeList[i]]++;
-    }
-    let starts0 = new Uint32Array(256 * 256);
-    for (let i = 1; i < 256 * 256; i++) starts0[i] = starts0[i - 1] + counts0[i - 1];
-    let depthIndex = new Uint32Array(vertexCount);
-    for (let i = 0; i < vertexCount; i++) depthIndex[starts0[sizeList[i]]++] = i;
-
-    console.timeEnd("sort");
-
-    lastProj = viewProj;
-    self.postMessage({ depthIndex, viewProj, vertexCount }, [depthIndex.buffer]);
-  }
-
-  const throttledSort = () => {
-    if (!sortRunning) {
-      sortRunning = true;
-      let lastView = viewProj;
-      runSort(lastView);
-      setTimeout(() => {
-        sortRunning = false;
-        if (lastView !== viewProj) {
-          throttledSort();
+                statusText.textContent = "Loading animation data...";
+                await loadSplatvAnimation();
+                
+                statusText.textContent = "Setting up controls...";
+                setupControls();
+                setupEventListeners();
+                
+                // Hide progress and show controls
+                progressContainer.style.display = "none";
+                controls.style.display = "block";
+                
+                // Start render loop
+                startRenderLoop();
+                
+            } catch (error) {
+                console.error("Initialization failed:", error);
+                statusText.textContent = "Failed to load. Please refresh the page.";
+            }
         }
-      }, 0);
-    }
-  };
 
-  self.onmessage = (e) => {
-    if (e.data.view) {
-      viewProj = e.data.view;
-      throttledSort();
-    } else if (e.data.positions) {
-      positions = e.data.positions;
-      vertexCount = positions.length / 3;
-      lastVertexCount = 0;
-    }
-  };
-}
+        // Load splatv animation file
+        async function loadSplatvAnimation() {
+            try {
+                const loader = new SplatvLoader();
+                const url = "./data/test401.splatv";
+                
+                // Load with progress tracking
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`Failed to load ${url}: ${response.status}`);
+                }
+                
+                const total = parseInt(response.headers.get('content-length'), 10) || 1;
+                let loaded = 0;
+                
+                const reader = response.body.getReader();
+                const chunks = [];
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    loaded += value.length;
+                    
+                    const progress = (loaded / total) * 100;
+                    progressFill.style.width = `${Math.min(progress, 100)}%`;
+                }
+                
+                // Combine chunks and parse
+                const arrayBuffer = new Uint8Array(loaded);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    arrayBuffer.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                
+                statusText.textContent = "Parsing animation...";
+                
+                // Load splatv data
+                splatvData = await loader.loadFromArrayBuffer(arrayBuffer.buffer);
+                const splat = new Splatv(splatvData);
+                scene.addObject(splat);
+                
+                console.log("Loaded splatv animation with", splatvData.vertexCount, "gaussians");
+                
+            } catch (error) {
+                console.error("Error loading splatv:", error);
+                throw error;
+            }
+        }
 
-const worker = new Worker(URL.createObjectURL(new Blob(["(" + createWorker.toString() + ")(self)"], { type: 'application/javascript' })));
+        // Setup orbit controls for non-AR mode
+        function setupControls() {
+            controls = new OrbitControls(camera, canvas);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 0, 0);
+        }
 
-worker.onmessage = (e) => {
-  if (e.data.depthIndex) {
-    vertexCount = e.data.depthIndex.length;
-    gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, e.data.depthIndex, gl.DYNAMIC_DRAW);
-    const timeEl = document.querySelector('#info p:first-child');
-    timeEl.textContent = `Time: ${(e.data.viewProj[14] % 16).toFixed(2)}s / 16.00s`;
-    const gaussiansEl = document.querySelector('#info p:last-child');
-    gaussiansEl.textContent = `Gaussians: ${vertexCount.toLocaleString()}`;
-  }
-};
+        // Setup event listeners
+        function setupEventListeners() {
+            playBtn.addEventListener('click', togglePlayback);
+            arBtn.addEventListener('click', toggleAR);
+            resetBtn.addEventListener('click', resetView);
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Handle AR session events
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-ar').then(supported => {
+                    if (!supported) {
+                        arBtn.style.display = 'none';
+                        console.log("AR not supported on this device");
+                    }
+                }).catch(console.error);
+            } else {
+                arBtn.style.display = 'none';
+            }
+        }
 
-async function main() {
-  if (!navigator.xr) {
-    alert('WebXR not supported!');
-    return;
-  }
+        // Toggle playback
+        function togglePlayback() {
+            isPlaying = !isPlaying;
+            playBtn.textContent = isPlaying ? 'Pause' : 'Play';
+            playBtn.classList.toggle('active', isPlaying);
+            
+            if (isPlaying) {
+                animationStartTime = performance.now();
+            }
+        }
 
-  const session = await navigator.xr.requestSession('immersive-ar', {
-    optionalFeatures: ['dom-overlay'],
-    domOverlay: { root: document.documentElement }
-  });
+        // Toggle AR mode
+        async function toggleAR() {
+            if (!isARMode) {
+                await startAR();
+            } else {
+                await stopAR();
+            }
+        }
 
-  const canvas = document.createElement('canvas');
-  gl = canvas.getContext('webgl2', { antialias: true, xrCompatible: true });
-  session.updateRenderState({ baseLayer: new XRWebGLLayer(session, gl) });
+        // Start AR session
+        async function startAR() {
+            try {
+                arSession = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['hit-test', 'local'],
+                    optionalFeatures: ['dom-overlay'],
+                    domOverlay: { root: document.body }
+                });
 
-  refSpace = await session.requestReferenceSpace('local');
+                // Setup XR-compatible context
+                const gl = canvas.getContext('webgl2', { xrCompatible: true });
+                await gl.makeXRCompatible();
 
-  const program = attachShaders(gl, vertexShaderSource, fragmentShaderSource);
+                // Setup XR session
+                arSession.updateRenderState({ baseLayer: new XRWebGLLayer(arSession, gl) });
+                
+                const refSpace = await arSession.requestReferenceSpace('local');
+                const hitTestSpace = await arSession.requestReferenceSpace('viewer');
+                arHitTestSource = await arSession.requestHitTestSource({ space: hitTestSpace });
 
-  const a_position = gl.getAttribLocation(program, 'position');
-  const a_index = gl.getAttribLocation(program, 'index');
-  const u_projection = gl.getUniformLocation(program, 'projection');
-  const u_view = gl.getUniformLocation(program, 'view');
-  const u_focal = gl.getUniformLocation(program, 'focal');
-  const u_viewport = gl.getUniformLocation(program, 'viewport');
-  const u_time = gl.getUniformLocation(program, 'time');
-  const u_texture = gl.getUniformLocation(program, 'u_texture');
+                isARMode = true;
+                isModelPlaced = false;
+                arBtn.textContent = 'Exit AR';
+                arBtn.classList.add('active');
+                arInstructions.style.display = 'block';
+                previewModel.style.display = 'block';
 
-  gl.enable(gl.BLEND);
-  gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+                // Handle session end
+                arSession.addEventListener('end', () => {
+                    stopAR();
+                });
 
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
+                // Handle tap to place
+                arSession.addEventListener('selectstart', onARSelect);
+                
+                // Start AR render loop
+                arSession.requestAnimationFrame(onARFrame);
 
-  const positionBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-  gl.enableVertexAttribArray(a_position);
-  gl.vertexAttribPointer(a_position, 2, gl.FLOAT, false, 0, 0);
+            } catch (error) {
+                console.error('Failed to start AR:', error);
+                alert('AR failed to start. Make sure you\'re on a supported device.');
+            }
+        }
 
-  const indexBuffer = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, indexBuffer);
-  gl.enableVertexAttribArray(a_index);
-  gl.vertexAttribIPointer(a_index, 1, gl.INT, 0, 0);
-  gl.vertexAttribDivisor(a_index, 1);
+        // Stop AR session
+        async function stopAR() {
+            if (arSession) {
+                await arSession.end();
+            }
+            
+            isARMode = false;
+            isModelPlaced = false;
+            arSession = null;
+            arHitTestSource = null;
+            
+            arBtn.textContent = 'Start AR';
+            arBtn.classList.remove('active');
+            arInstructions.style.display = 'none';
+            previewModel.style.display = 'none';
+        }
 
-  gl.bindVertexArray(null);
+        // Handle AR select (tap to place)
+        function onARSelect(event) {
+            if (!isModelPlaced && arHitTestSource) {
+                isModelPlaced = true;
+                arInstructions.style.display = 'none';
+                previewModel.style.display = 'none';
+            }
+        }
 
-  const texture = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.uniform1i(u_texture, 0);
+        // AR frame handler
+        function onARFrame(time, frame) {
+            const session = frame.session;
+            const pose = frame.getViewerPose(session.requestReferenceSpace('local'));
+            
+            if (!pose) {
+                session.requestAnimationFrame(onARFrame);
+                return;
+            }
 
-  // Load the specific .splatv file
-  const url = './data/test401.splatv';
-  const req = await fetch(url);
-  if (!req.ok) {
-    alert('Failed to load .splatv file');
-    return;
-  }
-  const reader = req.body.getReader();
+            const gl = session.renderState.baseLayer.context;
+            const layer = session.renderState.baseLayer;
 
-  const chunks = [{ size: 8, type: "magic" }];
-  let vertexCount = 0;
-  let positions = [];
+            gl.bindFramebuffer(gl.FRAMEBUFFER, layer.framebuffer);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  await readChunks(reader, chunks, (chunk, buffer, remaining, chunks) => {
-    if (remaining) return;
-    if (chunk.type === "magic") {
-      const intView = new Int32Array(buffer);
-      if (intView[0] !== 0x674b) throw new Error("Invalid splatv file");
-      chunks.push({ size: intView[1], type: "chunks" });
-    } else if (chunk.type === "chunks") {
-      const splatChunks = JSON.parse(new TextDecoder("utf-8").decode(new Uint8Array(buffer)));
-      if (splatChunks.length === 0) throw new Error("Invalid splatv file");
-      if (splatChunks.length > 1) console.warn("Splatv file contains more than one chunk, only the first one will be loaded");
-      const splatChunk = splatChunks[0];
-      chunks.push(splatChunk);
-    } else if (chunk.type === "splat") {
-      const texdata = new Uint32Array(buffer);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32UI, chunk.texwidth, chunk.texheight, 0, gl.RGBA_INTEGER, gl.UNSIGNED_INT, texdata);
-      vertexCount = (chunk.texwidth * chunk.texheight) / 4; // 4 texels per gaussian
-      positions = new Float32Array(vertexCount * 3);
-      // Extract positions for sorting
-      for (let i = 0; i < vertexCount; i++) {
-        const row = Math.floor(i / 1024);
-        const col = (i % 1024) * 4;
-        const texelOffset = (row * chunk.texwidth + col) * 4;
-        positions[i * 3 + 0] = uintBitsToFloat(texdata[texelOffset + 0]);
-        positions[i * 3 + 1] = uintBitsToFloat(texdata[texelOffset + 1]);
-        positions[i * 3 + 2] = uintBitsToFloat(texdata[texelOffset + 2]);
-      }
-      worker.postMessage({ positions: positions });
-      document.getElementById('spinner').style.display = 'none';
-      document.getElementById('enter').style.display = 'block';
-    }
-  });
+            // Handle hit testing for placement
+            if (!isModelPlaced && arHitTestSource) {
+                const hitTestResults = frame.getHitTestResults(arHitTestSource);
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const hitMatrix = hit.getPose(pose.transform).transform.matrix;
+                    // Store hit position for model placement
+                    modelTransform = Array.from(hitMatrix);
+                }
+            }
 
-  function uintBitsToFloat(bits) {
-    _floatView[0] = bits;
-    return _floatView[0];
-  }
+            // Render for each view (eye)
+            for (const view of pose.views) {
+                const viewport = layer.getViewport(view);
+                gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
 
-  function onXRFrame(t, frame) {
-    const session = frame.session;
-    const pose = frame.getViewerPose(refSpace);
-    if (!pose) return;
+                // Update camera matrices for AR
+                const viewMatrix = view.transform.inverse.matrix;
+                const projectionMatrix = view.projectionMatrix;
+                
+                // Update time for animation
+                const currentTime = isPlaying ? (performance.now() - animationStartTime) / frameDuration : 0;
+                
+                // Render the splat with AR camera
+                if (splatvData && isModelPlaced) {
+                    renderSplatInAR(gl, viewMatrix, projectionMatrix, modelTransform, currentTime);
+                }
+            }
 
-    const glLayer = session.renderState.baseLayer;
-    gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            session.requestAnimationFrame(onARFrame);
+        }
 
-    // Linear time over 16 seconds
-    const totalDuration = 16;
-    const currentTime = (Date.now() / 1000) % totalDuration;
-    gl.uniform1f(u_time, currentTime);
+        // Render splat in AR context
+        function renderSplatInAR(gl, viewMatrix, projectionMatrix, modelMatrix, time) {
+            // This would integrate with GSplat's VideoRenderProgram
+            // For now, we'll use a simplified approach
+            if (renderer.renderProgram && renderer.renderProgram.render) {
+                // Update camera matrices
+                camera.data.projectionMatrix.set(projectionMatrix);
+                camera.data.viewMatrix.set(viewMatrix);
+                
+                // Apply model transform
+                // This might need adjustment based on GSplat's coordinate system
+                
+                // Render with time parameter for animation
+                renderer.renderProgram.render(time);
+            }
+        }
 
-    for (let view of pose.views) {
-      const viewport = glLayer.getViewport(view);
-      gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+        // Reset view to default
+        function resetView() {
+            if (controls && !isARMode) {
+                controls.reset();
+                camera.position.set(0, 1, 3);
+                camera.lookAt(0, 0, 0);
+            }
+        }
 
-      const projectionMatrix = view.projectionMatrix;
-      gl.uniformMatrix4fv(u_projection, false, projectionMatrix);
-      gl.uniform2fv(u_viewport, [viewport.width, viewport.height]);
-      gl.uniform2fv(u_focal, [(projectionMatrix[0] * viewport.width) / 2, -(projectionMatrix[5] * viewport.height) / 2]);
+        // Handle window resize
+        function onWindowResize() {
+            if (!isARMode) {
+                camera.data.setSize(canvas.clientWidth, canvas.clientHeight);
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            }
+        }
 
-      const viewMatrix = multiply4(view.transform.inverse.matrix, worldTransform);
-      gl.uniformMatrix4fv(u_view, false, viewMatrix);
+        // Main render loop for non-AR mode
+        function startRenderLoop() {
+            function render(currentTime) {
+                if (!isARMode) {
+                    if (controls) {
+                        controls.update();
+                    }
+                    
+                    // Calculate animation time
+                    const animTime = isPlaying ? (currentTime - animationStartTime) / frameDuration : 0;
+                    
+                    // Render the scene
+                    if (renderer && renderer.render) {
+                        renderer.render();
+                    }
+                }
+                
+                requestAnimationFrame(render);
+            }
+            
+            requestAnimationFrame(render);
+        }
 
-      gl.bindVertexArray(vao);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 3, vertexCount);
-      gl.bindVertexArray(null);
-
-      const viewProj = multiply4(projectionMatrix, viewMatrix);
-      worker.postMessage({ view: viewProj });
-    }
-
-    session.requestAnimationFrame(onXRFrame);
-  }
-
-  document.getElementById("enter").onclick = () => {
-    session.requestAnimationFrame(onXRFrame);
-  };
-}
-
-main().catch(console.error);
-
+        // Start the application
+        init().catch(console.error);
     </script>
 </body>
 </html>
