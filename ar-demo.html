@@ -148,11 +148,13 @@
             VideoRenderProgram,
             SplatvLoader, 
             Splatv,
-            OrbitControls 
+            OrbitControls,
+            Vector3,
+            Quaternion
         } from "https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js";
 
         // Global variables
-        let scene, camera, renderer, controls;
+        let scene, camera, renderer, orbitControls;
         let splatvData = null;
         let isPlaying = false;
         let isARMode = false;
@@ -187,11 +189,11 @@
                 
                 // Setup camera for non-AR view
                 camera.data.setSize(canvas.clientWidth, canvas.clientHeight);
-                camera.position.set(0, 1, 3);
+                camera.position = new Vector3(0, 1, 3);
 
                 // Create renderer with VideoRenderProgram for splatv animation
-                renderer = new WebGLRenderer(canvas, camera, scene);
-                renderer.renderProgram = new VideoRenderProgram(renderer, camera, scene);
+                renderer = new WebGLRenderer(canvas);
+                renderer.addProgram(new VideoRenderProgram(renderer));
 
                 statusText.textContent = "Loading animation data...";
                 await loadSplatvAnimation();
@@ -217,7 +219,8 @@
         async function loadSplatvAnimation() {
             try {
                 const loader = new SplatvLoader();
-                const url = "./data/test401.splatv";
+                // Use the correct GitHub raw URL
+                const url = "https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/test401.splatv";
                 
                 // Load with progress tracking
                 const response = await fetch(url);
@@ -267,10 +270,10 @@
 
         // Setup orbit controls for non-AR mode
         function setupControls() {
-            controls = new OrbitControls(camera, canvas);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.target.set(0, 0, 0);
+            orbitControls = new OrbitControls(camera, canvas);
+            orbitControls.enableDamping = true;
+            orbitControls.dampingFactor = 0.05;
+            orbitControls.target.set(0, 0, 0);
         }
 
         // Setup event listeners
@@ -453,10 +456,10 @@
 
         // Reset view to default
         function resetView() {
-            if (controls && !isARMode) {
-                controls.reset();
-                camera.position.set(0, 1, 3);
-                camera.lookAt(0, 0, 0);
+            if (orbitControls && !isARMode) {
+                orbitControls.reset();
+                camera.position = new Vector3(0, 1, 3);
+                camera.rotation = Quaternion.FromEuler(new Vector3(0, 0, 0));
             }
         }
 
@@ -472,8 +475,8 @@
         function startRenderLoop() {
             function render(currentTime) {
                 if (!isARMode) {
-                    if (controls) {
-                        controls.update();
+                    if (orbitControls) {
+                        orbitControls.update();
                     }
                     
                     // Calculate animation time
@@ -481,7 +484,7 @@
                     
                     // Render the scene
                     if (renderer && renderer.render) {
-                        renderer.render();
+                        renderer.render(scene, camera);
                     }
                 }
                 
