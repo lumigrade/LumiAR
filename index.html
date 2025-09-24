@@ -377,9 +377,6 @@
             render();
             debugLog('Render loop started');
         }
-
-        // Debug log function
-        function debugLog(message) {
             console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
             debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
             debug.scrollTop = debug.scrollHeight;
@@ -400,69 +397,75 @@
         async function discoverSplatvFiles() {
             debugLog('Starting file discovery in ./data/...');
             
-            // Try to get directory listing (this might not work due to browser security)
-            // We'll use a fallback approach with common patterns
             const discoveredFiles = [];
             
-            // First, try the known working example
+            // First, try the known working flame.splatv format
             try {
-                const response = await fetch('./data/flame.splatv', { method: 'HEAD' });
+                const response = await fetch('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv', { method: 'HEAD' });
                 if (response.ok) {
-                    debugLog('Found: flame.splatv');
+                    debugLog('Found: flame.splatv (working example from HuggingFace)');
                     discoveredFiles.push({
                         name: 'flame.splatv',
-                        path: './data/flame.splatv',
-                        displayName: 'Flame',
+                        path: 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv',
+                        displayName: 'Flame (Working Example)',
                         icon: '🔥',
                         size: response.headers.get('content-length') || 'Unknown'
                     });
                 }
             } catch (error) {
-                debugLog('flame.splatv not found or not accessible');
+                debugLog('Remote flame.splatv not accessible');
             }
             
-            // Try common naming patterns for your files
+            // Try local flame.splatv
+            try {
+                const response = await fetch('./data/flame.splatv', { method: 'HEAD' });
+                if (response.ok) {
+                    debugLog('Found: ./data/flame.splatv');
+                    discoveredFiles.push({
+                        name: 'local-flame.splatv',
+                        path: './data/flame.splatv',
+                        displayName: 'Flame (Local)',
+                        icon: '🔥',
+                        size: response.headers.get('content-length') || 'Unknown'
+                    });
+                }
+            } catch (error) {
+                debugLog('./data/flame.splatv not found');
+            }
+            
+            // Try your converted files (but warn about format issues)
             const testPatterns = [
                 'test401.splatv',
                 'animation.splatv', 
                 'sequence.splatv',
-                'demo.splatv',
-                'scene1.splatv',
-                'scene2.splatv',
-                'output.splatv'
+                'demo.splatv'
             ];
             
-            // Try numbered sequences
-            for (let i = 1; i <= 20; i++) {
-                testPatterns.push(`test${i}.splatv`);
-                testPatterns.push(`anim${i}.splatv`);
-                testPatterns.push(`scene${i}.splatv`);
-            }
-            
-            // Test each potential file
             for (const filename of testPatterns) {
                 try {
                     const response = await fetch(`./data/${filename}`, { method: 'HEAD' });
                     if (response.ok) {
                         const size = response.headers.get('content-length');
-                        debugLog(`Found: ${filename} (${size ? Math.round(size/1024/1024*100)/100 + ' MB' : 'Unknown size'})`);
+                        debugLog(`Found: ${filename} (${size ? Math.round(size/1024/1024*100)/100 + ' MB' : 'Unknown size'}) - MAY HAVE FORMAT ISSUES`);
                         
-                        if (!discoveredFiles.find(f => f.name === filename)) {
-                            discoveredFiles.push({
-                                name: filename,
-                                path: `./data/${filename}`,
-                                displayName: filename.replace('.splatv', '').replace(/[_-]/g, ' '),
-                                icon: getFileIcon(filename),
-                                size: size ? `${Math.round(size/1024/1024*100)/100} MB` : 'Unknown'
-                            });
-                        }
+                        discoveredFiles.push({
+                            name: filename,
+                            path: `./data/${filename}`,
+                            displayName: filename.replace('.splatv', '').replace(/[_-]/g, ' ') + ' ⚠️',
+                            icon: getFileIcon(filename),
+                            size: size ? `${Math.round(size/1024/1024*100)/100} MB` : 'Unknown'
+                        });
                     }
                 } catch (error) {
-                    // File doesn't exist or not accessible, skip silently
+                    // File doesn't exist, skip
                 }
             }
             
             debugLog(`Total discovered: ${discoveredFiles.length} .splatv files`);
+            if (discoveredFiles.length > 1) {
+                debugLog('⚠️  Warning: Your converted files may have format issues. Try flame.splatv first.');
+            }
+            
             return discoveredFiles;
         }
 
@@ -597,6 +600,207 @@
             const frameDuration = 1000 / fps; // 40ms for 25fps
             
             if (deltaTime >= frameDuration) {
+                animationFrame++;
+                if (animationFrame >= totalFrames) {
+                    animationFrame = 0; // Loop animation
+                }
+                
+                // Update animation frame in gsplat.js
+                // The VideoRenderProgram should handle time-based animation automatically
+                // We can set a time uniform or use the built-in animation system
+                if (renderer && renderer.programs) {
+                    // Try to update time for VideoRenderProgram
+                    const videoProgram = renderer.programs.find(p => p.constructor.name === 'VideoRenderProgram');
+                    if (videoProgram && videoProgram.setTime) {
+                        const normalizedTime = animationFrame / totalFrames;
+                        videoProgram.setTime(normalizedTime);
+                    }
+                }
+                
+                debugLog(`Frame: ${animationFrame}/${totalFrames} (${Math.round(animationFrame/totalFrames*100)}%)`);
+                lastFrameTime = currentTime;
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Start AR session using WebXR
+        async function startAR() {
+            if (!currentSplatvFile) {
+                updateStatus('❌ Load a .splatv file first', 'error');
+                return;
+            }
+            
+            try {
+                debugLog('Checking WebXR support...');
+                
+                if (!navigator.xr) {
+                    updateStatus('❌ WebXR not supported on this device', 'error');
+                    return;
+                }
+                
+                const isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                if (!isARSupported) {
+                    updateStatus('❌ AR not supported on this device', 'error');
+                    return;
+                }
+                
+                updateStatus('🚀 Starting AR session...', 'success');
+                debugLog('Starting AR session...');
+                
+                // Request AR session
+                const session = await navigator.xr.requestSession('immersive-ar', {
+                    requiredFeatures: ['local'],
+                    optionalFeatures: ['dom-overlay', 'unbounded']
+                });
+                
+                // Make WebGL context XR compatible
+                const gl = canvas.getContext('webgl2', { xrCompatible: true });
+                const xrLayer = new XRWebGLLayer(session, gl);
+                session.updateRenderState({ baseLayer: xrLayer });
+                
+                // Set up reference space
+                const referenceSpace = await session.requestReferenceSpace('local');
+                
+                debugLog('AR session initialized, starting render loop...');
+                
+                function onXRFrame(time, frame) {
+                    const session = frame.session;
+                    const pose = frame.getViewerPose(referenceSpace);
+                    
+                    if (pose) {
+                        const glLayer = session.renderState.baseLayer;
+                        gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+                        
+                        // Update camera matrices for AR
+                        for (const view of pose.views) {
+                            const viewport = glLayer.getViewport(view);
+                            gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+                            
+                            // Update gsplat camera with AR view matrix
+                            if (camera && controls) {
+                                // Transform camera based on AR pose
+                                const viewMatrix = view.transform.inverse.matrix;
+                                // Apply to gsplat camera - this needs proper matrix conversion
+                                // camera.setViewMatrix(viewMatrix);
+                            }
+                            
+                            // Render the scene
+                            if (renderer && scene && camera) {
+                                renderer.render(scene, camera);
+                            }
+                        }
+                    }
+                    
+                    session.requestAnimationFrame(onXRFrame);
+                }
+                
+                session.requestAnimationFrame(onXRFrame);
+                
+                session.addEventListener('end', () => {
+                    updateStatus('✅ AR session ended', 'success');
+                    debugLog('AR session ended');
+                    // Resume normal render loop
+                    startRenderLoop();
+                });
+                
+                updateStatus('✅ AR session active!', 'success');
+                debugLog('AR session started successfully');
+                
+            } catch (error) {
+                updateStatus(`❌ Failed to start AR: ${error.message}`, 'error');
+                debugLog(`AR start failed: ${error.message}`);
+                console.error('AR Error:', error);
+            }
+        }
+
+        // Initialize the app
+        async function init() {
+            debugLog('Initializing AR .splatv Player...');
+            
+            try {
+                // Load gsplat.js library
+                updateLoadingText('Loading gsplat.js library...');
+                const gsplatLoaded = await loadGsplatLibrary();
+                if (!gsplatLoaded) {
+                    loading.classList.add('hidden');
+                    return;
+                }
+                
+                // Initialize renderer
+                updateLoadingText('Initializing renderer...');
+                const rendererReady = await initGsplatRenderer();
+                if (!rendererReady) {
+                    loading.classList.add('hidden');
+                    return;
+                }
+                
+                // Start render loop
+                startRenderLoop();
+                
+                // Discover .splatv files
+                updateLoadingText('Scanning for .splatv files...');
+                const files = await discoverSplatvFiles();
+                
+                if (files.length === 0) {
+                    updateStatus('❌ No .splatv files found in ./data folder', 'error');
+                    loading.classList.add('hidden');
+                    return;
+                }
+                
+                // Create thumbnails
+                updateLoadingText('Creating thumbnails...');
+                files.forEach(fileInfo => {
+                    const thumbnail = createThumbnail(fileInfo);
+                    thumbnails.appendChild(thumbnail);
+                });
+                
+                loading.classList.add('hidden');
+                updateStatus(`✅ Ready! Found ${files.length} .splatv files`, 'success');
+                debugLog('Initialization complete');
+                
+                // Auto-load first file (flame.splatv if available)
+                const flameFile = files.find(f => f.name === 'flame.splatv');
+                if (flameFile) {
+                    setTimeout(() => {
+                        debugLog('Auto-loading flame.splatv...');
+                        // Simulate click on flame thumbnail
+                        const flameThumbnail = [...thumbnails.children].find(t => 
+                            t.querySelector('.thumbnail-name').textContent === 'Flame'
+                        );
+                        if (flameThumbnail) {
+                            flameThumbnail.click();
+                        }
+                    }, 500);
+                }
+                
+            } catch (error) {
+                loading.classList.add('hidden');
+                updateStatus('❌ Initialization failed', 'error');
+                debugLog(`Initialization error: ${error.message}`);
+                console.error('Init error:', error);
+            }
+        }
+        
+        // Handle window resize
+        function handleResize() {
+            if (camera && renderer) {
+                camera.data.setSize(window.innerWidth, window.innerHeight);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                debugLog(`Resized: ${window.innerWidth}x${window.innerHeight}`);
+            }
+        }
+
+        // Expose functions to global scope for onclick handlers
+        window.togglePlayback = togglePlayback;
+        window.resetAnimation = resetAnimation;
+        window.startAR = startAR;
+
+        // Start the app
+        document.addEventListener('DOMContentLoaded', init);
+        window.addEventListener('resize', handleResize);
+        
+    </script>uration) {
                 animationFrame++;
                 if (animationFrame >= totalFrames) {
                     animationFrame = 0; // Loop animation
