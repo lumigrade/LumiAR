@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎭 4DVV .splatv AR - 4D Gaussian Splatting</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            overflow: hidden;
+        }
+
+        #canvas3d {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            background: #000;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .status {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 12px;
+            z-index: 100;
+            max-width: 80vw;
+            text-align: center;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.8);
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.8);
+        }
+
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 20px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            max-width: 95vw;
+        }
+
+        .main-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .control-btn:hover, .control-btn.active {
+            background: rgba(76, 175, 80, 0.3);
+            border-color: rgba(76, 175, 80, 0.5);
+        }
+
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .ar-button {
+            background: rgba(255, 107, 107, 0.2);
+            border-color: rgba(255, 107, 107, 0.5);
+        }
+
+        .ar-button:hover:not(:disabled) {
+            background: rgba(255, 107, 107, 0.4);
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 200;
+            min-width: 250px;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left: 3px solid #4CAF50;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .debug {
+            position: fixed;
+            top: 120px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 10px;
+            max-width: 200px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎭 4DVV .splatv AR - 4D Gaussian Splatting</h1>
+        <p>Real-time 4D animation with VideoRenderProgram</p>
+    </div>
+
+    <div class="status" id="status">
+        Initializing gsplat.js VideoRenderProgram for 4D animation
+    </div>
+
+    <div class="debug" id="debug">
+        Debug info will appear here...
+    </div>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div id="loadingText">Loading gsplat.js VideoRenderProgram...</div>
+    </div>
+
+    <canvas id="canvas3d"></canvas>
+
+    <div class="controls">
+        <div class="main-controls">
+            <button class="control-btn" onclick="loadMyTestFile()" disabled id="myTestBtn">🎯 test401</button>
+            <button class="control-btn" onclick="loadWorkingExample()" disabled id="exampleBtn">✅ Example</button>
+            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
+            <button class="ar-button control-btn" id="arButton" onclick="startAR()" disabled>🚀 AR</button>
+        </div>
+    </div>
+
+    <script type="module">
+        // Console.assert polyfill (GSplat.js requires this)
+        if (!console.assert) {
+            console.assert = function(condition, message) {
+                if (!condition) {
+                    console.error('Assertion failed:', message || 'Assertion failed');
+                    throw new Error(message || 'Assertion failed');
+                }
+            };
+        }
+
+        // Debug logging
+        function debugLog(message) {
+            console.log('[DEBUG]', message);
+            const debug = document.getElementById('debug');
+            if (debug) {
+                debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
+                debug.scrollTop = debug.scrollHeight;
+            }
+        }
+
+        debugLog('Script started with console.assert polyfill');
+
+        // Global variables
+        let SPLAT = null;
+        let scene, camera, renderer;
+        let currentSplatv = null;
+        let isPlaying = false;
+        let arSession = null;
+
+        // UI elements
+        const canvas = document.getElementById('canvas3d');
+        const loading = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        const status = document.getElementById('status');
+        const arButton = document.getElementById('arButton');
+        const myTestBtn = document.getElementById('myTestBtn');
+        const exampleBtn = document.getElementById('exampleBtn');
+        const playBtn = document.getElementById('playBtn');
+
+        // Import gsplat.js with proper error handling
+        async function loadGsplat() {
+            try {
+                debugLog('Importing gsplat.js...');
+                updateLoadingText('Loading gsplat.js library...');
+                
+                SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
+                debugLog('gsplat.js imported successfully');
+                debugLog(`Available classes: ${Object.keys(SPLAT).slice(0, 10).join(', ')}...`);
+                
+                return true;
+            } catch (error) {
+                debugLog(`Failed to import gsplat.js: ${error.message}`);
+                console.error('gsplat.js import failed:', error);
+                updateStatus('Failed to load gsplat.js library', 'error');
+                loading.classList.add('hidden');
+                return false;
+            }
+        }
+
+        // Initialize gsplat.js scene
+        async function initGsplat() {
+            try {
+                debugLog('Starting gsplat initialization');
+                updateLoadingText('Creating scene and camera...');
+                
+                // Create basic components
+                scene = new SPLAT.Scene();
+                debugLog('Scene created');
+                
+                camera = new SPLAT.Camera();
+                debugLog('Camera created');
+                
+                // Set camera position
+                camera.position = new SPLAT.Vector3(0, 1.6, 3);
+                debugLog('Camera position set');
+                
+                updateLoadingText('Creating WebGL renderer...');
+                
+                // Create renderer with proper initialization
+                renderer = new SPLAT.WebGLRenderer(canvas);
+                debugLog('Renderer created');
+                
+                updateLoadingText('Adding VideoRenderProgram for .splatv files...');
+                
+                // Add VideoRenderProgram for .splatv support
+                const videoProgram = new SPLAT.VideoRenderProgram(renderer);
+                renderer.addProgram(videoProgram);
+                debugLog('VideoRenderProgram added');
+                
+                updateLoadingText('Setting up camera data...');
+                
+                // Configure camera
+                camera.data.setSize(window.innerWidth, window.innerHeight);
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                debugLog('Camera and renderer configured');
+                
+                updateLoadingText('Adding orbit controls...');
+                
+                // Add controls
+                const controls = new SPLAT.OrbitControls(camera, canvas);
+                window.controls = controls;
+                debugLog('Controls added');
+                
+                updateLoadingText('Checking WebXR support...');
+                await checkWebXRSupport();
+                
+                // Hide loading
+                loading.classList.add('hidden');
+                updateStatus('✅ Ready! Click test401 or Example to load a .splatv file', 'success');
+                
+                // Enable buttons
+                myTestBtn.disabled = false;
+                exampleBtn.disabled = false;
+                
+                debugLog('Initialization complete');
+                
+                // Start render loop
+                startRenderLoop();
+
+            } catch (error) {
+                debugLog(`Initialization failed: ${error.message}`);
+                console.error('gsplat.js initialization failed:', error);
+                updateStatus(`❌ Initialization failed: ${error.message}`, 'error');
+                loading.classList.add('hidden');
+            }
+        }
+
+        // Render loop with proper error handling
+        function startRenderLoop() {
+            debugLog('Starting render loop');
+            
+            function render() {
+                try {
+                    // Update controls
+                    if (window.controls) {
+                        window.controls.update();
+                    }
+                    
+                    // Only render if we have all components
+                    if (renderer && scene && camera) {
+                        renderer.render(scene, camera);
+                    }
+                } catch (error) {
+                    // Don't spam the console with render errors
+                    if (!render.errorLogged) {
+                        debugLog(`Render error: ${error.message}`);
+                        console.error('Render error:', error);
+                        render.errorLogged = true;
+                    }
+                }
+                requestAnimationFrame(render);
+            }
+            render();
+        }
+
+        // Load .splatv file
+        async function loadSplatvFile(url, filename) {
+            try {
+                debugLog(`Loading ${filename} from ${url}`);
+                updateLoadingText(`Loading ${filename}...`);
+                loading.classList.remove('hidden');
+                
+                // Clear scene
+                scene.reset();
+                currentSplatv = null;
+                debugLog('Scene cleared');
+                
+                // Progress callback
+                const onProgress = (progress) => {
+                    const percent = (progress * 100).toFixed(0);
+                    updateLoadingText(`Loading ${filename}: ${percent}%`);
+                    debugLog(`Loading progress: ${percent}%`);
+                };
+                
+                // Load the file
+                debugLog('Starting SplatvLoader.LoadAsync');
+                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, onProgress);
+                debugLog('SplatvLoader.LoadAsync completed');
+                
+                // Find loaded object
+                const splatvObjects = scene.objects.filter(obj => obj instanceof SPLAT.Splatv);
+                debugLog(`Found ${splatvObjects.length} Splatv objects`);
+                
+                if (splatvObjects.length > 0) {
+                    currentSplatv = splatvObjects[0];
+                    const gaussianCount = currentSplatv.data.vertexCount || 0;
+                    debugLog(`Loaded ${gaussianCount} gaussians`);
+                    
+                    // Enable controls
+                    playBtn.disabled = false;
+                    arButton.disabled = false;
+                    
+                    // Set camera target for better viewing
+                    if (window.controls) {
+                        const targetPos = camera.position.add(new SPLAT.Vector3(0, 0, -3));
+                        window.controls.setCameraTarget(targetPos);
+                        debugLog('Camera target set');
+                    }
+                    
+                    loading.classList.add('hidden');
+                    updateStatus(`✅ ${filename} loaded • ${gaussianCount.toLocaleString()} Gaussians • Ready!`, 'success');
+                    
+                } else {
+                    throw new Error('No Splatv objects found in loaded file');
+                }
+                
+            } catch (error) {
+                debugLog(`Loading failed: ${error.message}`);
+                loading.classList.add('hidden');
+                updateStatus(`❌ Failed to load: ${error.message}`, 'error');
+                console.error('Loading failed:', error);
+            }
+        }
+
+        // Load functions
+        async function loadMyTestFile() {
+            if (!SPLAT) {
+                updateStatus('GSplat not loaded yet', 'error');
+                return;
+            }
+            await loadSplatvFile(
+                'https://raw.githubusercontent.com/lumigrade/LumiAR/main/data/test401.splatv',
+                'test401.splatv'
+            );
+        }
+
+        async function loadWorkingExample() {
+            if (!SPLAT) {
+                updateStatus('GSplat not loaded yet', 'error');
+                return;
+            }
+            await loadSplatvFile(
+                'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv',
+                'flame.splatv'
+            );
+        }
+
+        // Simple playback toggle
+        function togglePlayback() {
+            if (!currentSplatv) {
+                updateStatus('No .splatv file loaded', 'error');
+                return;
+            }
+            
+            isPlaying = !isPlaying;
+            playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
+            
+            if (isPlaying) {
+                updateStatus('▶️ Playing animation', 'success');
+            } else {
+                updateStatus('⏸️ Animation paused');
+            }
+        }
+
+        // WebXR check
+        async function checkWebXRSupport() {
+            try {
+                if (!navigator.xr) {
+                    debugLog('WebXR not supported');
+                    return;
+                }
+                
+                const isSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                debugLog(`AR supported: ${isSupported}`);
+                
+                if (isSupported) {
+                    updateStatus('WebXR AR supported', 'success');
+                } else {
+                    debugLog('AR not supported on this device');
+                }
+            } catch (error) {
+                debugLog(`WebXR check failed: ${error.message}`);
+            }
+        }
+
+        // Simple AR start (placeholder)
+        async function startAR() {
+            if (!navigator.xr) {
+                updateStatus('WebXR not supported on this device', 'error');
+                return;
+            }
+
+            if (!currentSplatv) {
+                updateStatus('Load a .splatv file first', 'error');
+                return;
+            }
+
+            updateStatus('AR functionality coming in next update...', 'error');
+        }
+
+        // Utility functions
+        function updateStatus(message, type = '') {
+            if (status) {
+                status.textContent = message;
+                status.className = `status ${type}`;
+            }
+            debugLog(`Status: ${message}`);
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    if (status && status.classList.contains('success')) {
+                        status.className = 'status';
+                    }
+                }, 3000);
+            }
+        }
+
+        function updateLoadingText(text) {
+            if (loadingText) {
+                loadingText.textContent = text;
+            }
+            debugLog(`Loading: ${text}`);
+        }
+
+        // Window resize handler
+        window.addEventListener('resize', () => {
+            if (renderer && camera) {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.data.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+
+        // Global function exposure
+        window.loadMyTestFile = loadMyTestFile;
+        window.loadWorkingExample = loadWorkingExample;
+        window.togglePlayback = togglePlayback;
+        window.startAR = startAR;
+
+        // Main initialization function
+        async function main() {
+            debugLog('Starting main initialization');
+            
+            // Load gsplat.js first
+            const loaded = await loadGsplat();
+            if (!loaded) {
+                return;
+            }
+            
+            // Then initialize
+            await initGsplat();
+        }
+
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+                debugLog('DOM ready, starting main');
+                main().catch(error => {
+                    debugLog(`Main error: ${error.message}`);
+                    console.error('Main initialization error:', error);
+                });
+            });
+        } else {
+            debugLog('DOM already ready, starting main');
+            main().catch(error => {
+                debugLog(`Main error: ${error.message}`);
+                console.error('Main initialization error:', error);
+            });
+        }
+
+    </script>
+
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'983af2993a923dda',t:'MTc1ODY0MDAwNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadyStatechange=e,c())}}}})();</script></body>
+</html>
