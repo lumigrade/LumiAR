@@ -367,7 +367,8 @@
                         const distance = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 2;
                         log(`📏 Calculated distance: ${distance.toFixed(2)}`);
                         
-                        camera.position.set(
+                        // Fix camera positioning - use Vector3 constructor instead of .set()
+                        camera.position = new SPLAT.Vector3(
                             center.x + distance * 0.7,
                             center.y + distance * 0.5, 
                             center.z + distance * 0.7
