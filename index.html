@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🎭 AR Splat Sequences - Mobile Demo</title>
-    <script src="https://cdn.jsdelivr.net/npm/gsplat@latest/dist/gsplat.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -344,6 +343,7 @@
 
     <script type="module">
         // Global variables
+        let SPLAT = null;
         let scene, camera, renderer, controls;
         let deviceCapabilities = {};
         let availableSequences = [];
@@ -1026,6 +1026,23 @@
             }
         }
 
+        // Import gsplat.js with proper error handling
+        async function loadGsplat() {
+            try {
+                updateStatus('🔄 Loading gsplat.js library...', 'info');
+                updateLoadingText('Loading gsplat.js library...');
+                
+                SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
+                updateStatus('✅ gsplat.js loaded successfully!', 'success');
+                
+                return true;
+            } catch (error) {
+                updateStatus(`❌ Failed to load gsplat.js: ${error.message}`, 'error');
+                console.error('gsplat.js import failed:', error);
+                return false;
+            }
+        }
+
         // Main initialization
         async function initializeGSplat() {
             try {
@@ -1094,6 +1111,13 @@
             try {
                 updateLoadingText('Detecting device capabilities...');
                 detectDeviceCapabilities();
+                
+                updateLoadingText('Loading gsplat.js library...');
+                const gSplatLoaded = await loadGsplat();
+                
+                if (!gSplatLoaded) {
+                    throw new Error('Failed to load gsplat.js library');
+                }
                 
                 updateLoadingText('Initializing gsplat.js...');
                 const gSplatReady = await initializeGSplat();
