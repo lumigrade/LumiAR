@@ -377,6 +377,9 @@
             render();
             debugLog('Render loop started');
         }
+
+        // Debug log function
+        function debugLog(message) {
             console.log(`[${new Date().toLocaleTimeString()}] ${message}`);
             debug.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
             debug.scrollTop = debug.scrollHeight;
