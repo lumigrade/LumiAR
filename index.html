@@ -1,3 +1,4 @@
+<script src="https://unpkg.com/gsplat@latest/dist/gsplat.js"></script>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -40,16 +41,22 @@
         const gl = canvas.getContext('webgl2');
 
         // For Play (2D) using VideoRenderProgram
-        document.getElementById('play').addEventListener('click', () => {
+        const { WebGLRenderer, VideoRenderProgram, Scene, PerspectiveCamera, Splatv } = SPLAT;
+        document.getElementById('play').addEventListener('click', async () => {
             spinner.style.display = 'block';
-            // Assume gsplat.js setup; replace with actual init
             const renderer = new WebGLRenderer(canvas);
             const program = new VideoRenderProgram(renderer);
             renderer.addProgram(program);
             const scene = new Scene();
-            const camera = new Camera();
-            // Load .splatv, e.g., fetch('your.splatv').then(data => program.renderData = new SplatvData(data));
-            // Then render loop: requestAnimationFrame(() => renderer.render(scene, camera));
+            const camera = new PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+            camera.position.z = 5;
+            const splatv = await Splatv.LoadAsync('your.splatv'); // Replace with file URL
+            scene.add(splatv);
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
             spinner.style.display = 'none';
             status.textContent = 'Playing in 2D';
         });
