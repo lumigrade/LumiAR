@@ -297,7 +297,7 @@
             log('✅ Render loop started');
         }
 
-        // Test loading single .splat file
+        // Test loading single .splat file with format validation
         async function testSingleSplat() {
             if (!SPLAT) {
                 updateStatus('❌ gsplat.js not loaded!', 'error');
@@ -313,78 +313,106 @@
                 log('🧪 TESTING SINGLE .SPLAT FILE LOAD');
                 log(`📁 URL: ${url}`);
                 
-                // Clear scene first
-                log('🧹 Clearing scene...');
-                scene.reset();
+                // Step 1: Fetch the raw file data
+                log('🔍 Fetching raw file data...');
+                const response = await fetch(url);
+                log(`📊 Response: ${response.status} ${response.statusText}`);
                 
-                // Test if file exists first
-                log('🔍 Testing file existence...');
-                const testResponse = await fetch(url, { method: 'HEAD' });
-                log(`📊 File test response: ${testResponse.status} ${testResponse.statusText}`);
-                
-                if (!testResponse.ok) {
-                    throw new Error(`File not found: ${testResponse.status} ${testResponse.statusText}`);
+                if (!response.ok) {
+                    throw new Error(`File not found: ${response.status} ${response.statusText}`);
                 }
                 
-                // Get file size
-                const contentLength = testResponse.headers.get('content-length');
-                if (contentLength) {
-                    const fileSizeBytes = parseInt(contentLength);
-                    const fileSizeMB = (fileSizeBytes / 1024 / 1024).toFixed(2);
-                    log(`📏 File size: ${fileSizeBytes} bytes (${fileSizeMB} MB)`);
+                const arrayBuffer = await response.arrayBuffer();
+                const fileSizeBytes = arrayBuffer.byteLength;
+                const fileSizeMB = (fileSizeBytes / 1024 / 1024).toFixed(2);
+                log(`📏 File size: ${fileSizeBytes} bytes (${fileSizeMB} MB)`);
+                
+                // Step 2: Validate .splat file format
+                const expectedGaussians = fileSizeBytes / 32;
+                log(`🧮 Expected gaussians: ${expectedGaussians.toLocaleString()} (at 32 bytes each)`);
+                
+                if (fileSizeBytes % 32 !== 0) {
+                    log(`⚠️ WARNING: File size ${fileSizeBytes} not divisible by 32!`);
+                    log(`🔧 Remainder: ${fileSizeBytes % 32} bytes`);
+                }
+                
+                // Step 3: Try direct SplatData.Deserialize (bypass Loader)
+                log('🔬 Testing direct SplatData.Deserialize()...');
+                try {
+                    const buffer = new Uint8Array(arrayBuffer);
+                    log(`📦 Created Uint8Array buffer: ${buffer.length} bytes`);
                     
-                    // Check if file size makes sense for .splat (32 bytes per gaussian)
-                    const expectedGaussians = fileSizeBytes / 32;
-                    log(`🧮 Expected gaussians: ${expectedGaussians.toLocaleString()} (at 32 bytes each)`);
+                    // This is what Loader.LoadFromArrayBuffer does internally
+                    const data = SPLAT.SplatData.Deserialize(buffer);
+                    log(`✅ SplatData.Deserialize() succeeded!`);
+                    log(`🔢 Vertex count: ${data.vertexCount.toLocaleString()}`);
                     
-                    if (fileSizeBytes % 32 !== 0) {
-                        log(`⚠️ WARNING: File size not divisible by 32 bytes!`);
+                    // Step 4: Create Splat object
+                    log('🏗️ Creating Splat object...');
+                    scene.reset();
+                    const splat = new SPLAT.Splat(data);
+                    scene.addObject(splat);
+                    log(`✅ Splat object created and added to scene`);
+                    
+                    // Step 5: Position camera
+                    if (controls) {
+                        const bounds = splat.bounds;
+                        const center = bounds.center();
+                        const size = bounds.size();
+                        const distance = size.length() * 2;
+                        
+                        camera.position.set(
+                            center.x + distance * 0.7,
+                            center.y + distance * 0.5, 
+                            center.z + distance * 0.7
+                        );
+                        controls.setCameraTarget(center);
+                        log('📹 Camera positioned to view splat');
+                    }
+                    
+                    updateStatus(`✅ SUCCESS! Direct load: ${data.vertexCount.toLocaleString()} gaussians`, 'success');
+                    testBtn.textContent = '✅ Direct Load Success!';
+                    
+                } catch (deserializeError) {
+                    log(`❌ SplatData.Deserialize() failed: ${deserializeError.message}`);
+                    log(`📋 Deserialize error stack: ${deserializeError.stack}`);
+                    
+                    // Step 4: Try as PLY file instead
+                    log('🔄 Trying PLYLoader as fallback...');
+                    try {
+                        scene.reset();
+                        
+                        // Check if it might be a PLY file
+                        const header = new TextDecoder().decode(buffer.slice(0, 100));
+                        log(`📝 File header (first 100 chars): "${header}"`);
+                        
+                        if (header.startsWith('ply\n')) {
+                            log('🎯 File appears to be PLY format!');
+                            const splat = await SPLAT.PLYLoader.LoadAsync(url, scene);
+                            log(`✅ PLYLoader succeeded: ${splat.data.vertexCount.toLocaleString()} gaussians`);
+                            updateStatus(`✅ SUCCESS! PLY load: ${splat.data.vertexCount.toLocaleString()} gaussians`, 'success');
+                            testBtn.textContent = '✅ PLY Load Success!';
+                        } else {
+                            log('❌ File is not PLY format either');
+                            throw new Error(`File format not recognized. Header: "${header.slice(0, 20)}"`);
+                        }
+                        
+                    } catch (plyError) {
+                        log(`❌ PLYLoader also failed: ${plyError.message}`);
+                        throw deserializeError; // Throw the original error
                     }
                 }
-                
-                // Try to load with gsplat.js Loader
-                log('📦 Loading with SPLAT.Loader.LoadAsync()...');
-                updateStatus('Loading frame_000001.splat...', 'info');
-                
-                const progressCallback = (progress) => {
-                    const percent = (progress * 100).toFixed(1);
-                    log(`📈 Progress: ${percent}%`);
-                    if (progress < 1.0) {
-                        updateStatus(`Loading: ${percent}%`, 'info');
-                    }
-                };
-                
-                // This is the critical line - using exact gsplat.js method
-                const splat = await SPLAT.Loader.LoadAsync(url, scene, progressCallback);
-                
-                log('✅ SPLAT.Loader.LoadAsync() completed successfully!');
-                log(`📊 Loaded splat object:`, splat);
-                log(`🔢 Vertex count: ${splat.data.vertexCount.toLocaleString()}`);
-                log(`📐 Bounds: ${JSON.stringify(splat.bounds)}`);
-                
-                // Position camera to view the splat
-                if (controls) {
-                    const bounds = splat.bounds;
-                    const center = bounds.center();
-                    const size = bounds.size();
-                    const distance = size.length() * 2;
-                    
-                    camera.position.set(
-                        center.x + distance * 0.7,
-                        center.y + distance * 0.5, 
-                        center.z + distance * 0.7
-                    );
-                    controls.setCameraTarget(center);
-                    log('📹 Camera positioned to view splat');
-                }
-                
-                updateStatus(`✅ SUCCESS! Loaded ${splat.data.vertexCount.toLocaleString()} gaussians`, 'success');
-                testBtn.textContent = '✅ Loaded Successfully!';
                 
             } catch (error) {
-                log(`❌ FAILED to load .splat file: ${error.message}`);
+                log(`❌ COMPLETE FAILURE: ${error.message}`);
                 log(`📋 Error stack: ${error.stack}`);
                 log(`🔍 Error name: ${error.name}`);
+                
+                // Additional debugging info
+                log('🔬 DEBUGGING INFO:');
+                log(`- Is SPLAT defined? ${typeof SPLAT}`);
+                log(`- SPLAT.SplatData available? ${typeof SPLAT.SplatData}`);
+                log(`- SPLAT.SplatData.Deserialize available? ${typeof SPLAT.SplatData?.Deserialize}`);
                 
                 updateStatus(`❌ Failed: ${error.message}`, 'error');
                 testBtn.textContent = '❌ Failed - Try Again';
