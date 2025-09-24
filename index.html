@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎭 4DVV .splatv AR - 4D Gaussian Splatting v35</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #status, #debug, #spinner { margin: 20px; }
+        ul { list-style: none; padding: 0; }
+        li { display: inline; margin: 10px; }
+        canvas { display: block; margin: auto; }
+    </style>
+</head>
+<body>
+    <h1>Real-time 4D animation with VideoRenderProgram + WebXR AR</h1>
+    
+    <div id="status">Initializing gsplat.js VideoRenderProgram for 4D animation</div>
+    
+    <div id="debug">Debug info will appear here...</div>
+    
+    <div id="spinner">Loading gsplat.js VideoRenderProgram...</div>
+    
+    <canvas id="canvas" width="800" height="600"></canvas>
+    
+    <ul>
+        <li id="load-test">🎯 test401</li>
+        <li id="example">✅ Example</li>
+        <li id="play">▶️ Play</li>
+        <li id="ar">🚀 AR</li>
+    </ul>
+    
+    <script src="VideoRenderProgram.js"></script>
+    <script src="splatxr.js"></script>
+    <script>
+        const status = document.getElementById('status');
+        const debug = document.getElementById('debug');
+        const spinner = document.getElementById('spinner');
+        const canvas = document.getElementById('canvas');
+        const gl = canvas.getContext('webgl2');
+
+        // For Play (2D) using VideoRenderProgram
+        document.getElementById('play').addEventListener('click', () => {
+            spinner.style.display = 'block';
+            // Assume gsplat.js setup; replace with actual init
+            const renderer = new WebGLRenderer(canvas);
+            const program = new VideoRenderProgram(renderer);
+            renderer.addProgram(program);
+            const scene = new Scene();
+            const camera = new Camera();
+            // Load .splatv, e.g., fetch('your.splatv').then(data => program.renderData = new SplatvData(data));
+            // Then render loop: requestAnimationFrame(() => renderer.render(scene, camera));
+            spinner.style.display = 'none';
+            status.textContent = 'Playing in 2D';
+        });
+
+        // For AR using splatxr.js
+        document.getElementById('ar').addEventListener('click', () => {
+            spinner.style.display = 'block';
+            initXR().catch(err => {
+                debug.textContent = err;
+            });
+            spinner.style.display = 'none';
+            status.textContent = 'Entering AR';
+        });
+
+        // Add handlers for other buttons as needed, e.g., load different files
+    </script>
+</body>
+</html>
