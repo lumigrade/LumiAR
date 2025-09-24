@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎯 Single .splat File Test</title>
+    <title>🎭 AR Splat 400-Frame Sequence Player</title>
     <style>
         * {
             margin: 0;
@@ -42,17 +42,9 @@
             backdrop-filter: blur(5px);
         }
 
-        .status.success {
-            background: rgba(46, 204, 113, 0.8);
-        }
-
-        .status.error {
-            background: rgba(231, 76, 60, 0.8);
-        }
-
-        .status.info {
-            background: rgba(52, 152, 219, 0.8);
-        }
+        .status.success { background: rgba(46, 204, 113, 0.8); }
+        .status.error { background: rgba(231, 76, 60, 0.8); }
+        .status.info { background: rgba(52, 152, 219, 0.8); }
 
         .loading {
             position: fixed;
@@ -104,18 +96,23 @@
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         .control-btn {
-            padding: 15px 30px;
+            padding: 12px 20px;
             background: rgba(52, 152, 219, 0.9);
             border: none;
             border-radius: 25px;
             color: white;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             backdrop-filter: blur(5px);
             transition: all 0.3s ease;
+            min-width: 120px;
         }
 
         .control-btn:hover {
@@ -129,29 +126,61 @@
             transform: none;
         }
 
-        .debug {
+        .ar-button {
+            background: rgba(46, 204, 113, 0.9);
+        }
+
+        .ar-button:hover {
+            background: rgba(46, 204, 113, 1);
+        }
+
+        .playback-info {
             position: fixed;
             top: 120px;
             left: 10px;
-            right: 10px;
             background: rgba(0, 0, 0, 0.8);
             padding: 10px;
             border-radius: 5px;
             font-size: 12px;
             font-family: monospace;
             z-index: 100;
-            max-height: 200px;
+            display: none;
+        }
+
+        .playback-info.visible {
+            display: block;
+        }
+
+        .debug {
+            position: fixed;
+            top: 120px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 10px;
+            font-family: monospace;
+            z-index: 100;
+            max-height: 300px;
+            max-width: 300px;
             overflow-y: auto;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎯 Single .splat File Test</h1>
-        <p>Testing: ./data/splat/frame_000001.splat</p>
+        <h1>🎭 AR Splat 400-Frame Sequence Player</h1>
+        <p>Gaussian Splat sequence animation with AR placement</p>
     </div>
 
     <div class="status" id="status">Initializing...</div>
+
+    <div class="playback-info" id="playbackInfo">
+        <div>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></div>
+        <div>FPS: <span id="currentFPS">0</span></div>
+        <div>Gaussians: <span id="gaussianCount">0</span></div>
+        <div>Status: <span id="playStatus">Stopped</span></div>
+    </div>
 
     <div class="debug" id="debug">
         Debug log:<br>
@@ -165,24 +194,28 @@
     <canvas id="canvas3d"></canvas>
 
     <div class="controls">
-        <button class="control-btn" id="testBtn" onclick="testSingleSplat()" disabled>
-            🔬 Test Load frame_000001.splat
-        </button>
+        <button class="control-btn" id="loadBtn" onclick="loadFirstFrame()">🎬 Load Frame 1</button>
+        <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play Sequence</button>
+        <button class="ar-button control-btn" id="arBtn" onclick="startAR()" disabled>🚀 AR Mode</button>
     </div>
 
     <script type="module">
-        // Global variables
+        // Global variables - keeping it simple like the working test
         let SPLAT = null;
         let scene, camera, renderer, controls;
+        let sequencePlayer = null;
 
         // DOM elements
         const canvas = document.getElementById('canvas3d');
         const loading = document.getElementById('loading');
         const status = document.getElementById('status');
         const debug = document.getElementById('debug');
-        const testBtn = document.getElementById('testBtn');
+        const playbackInfo = document.getElementById('playbackInfo');
+        const loadBtn = document.getElementById('loadBtn');
+        const playBtn = document.getElementById('playBtn');
+        const arBtn = document.getElementById('arBtn');
 
-        // Debug logging
+        // Debug logging - exactly like the working test
         function log(message) {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[${timestamp}] ${message}`);
@@ -202,7 +235,215 @@
             log(`LOADING: ${text}`);
         }
 
-        // Import gsplat.js with console.assert polyfill
+        // Simple Sequence Player
+        class SimpleSequencePlayer {
+            constructor() {
+                this.folderPath = './data/splat';
+                this.maxFrames = 400;
+                this.currentFrame = 1;
+                this.isPlaying = false;
+                this.currentSplat = null;
+                this.targetFPS = 25;
+                this.frameInterval = 1000 / this.targetFPS;
+                this.lastFrameTime = 0;
+                this.actualFPS = 0;
+                this.fpsCounter = 0;
+                this.fpsStartTime = Date.now();
+                this.isLoaded = false;
+                
+                log('🎬 Simple sequence player created');
+            }
+
+            async loadSingleFrame(frameNum) {
+                const frameNumStr = frameNum.toString().padStart(6, '0');
+                const url = `${this.folderPath}/frame_${frameNumStr}.splat`;
+                
+                try {
+                    // Use the exact same method that worked for single frame test
+                    log(`📥 Loading frame ${frameNum}: ${url}`);
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`Frame ${frameNum} not found: ${response.status}`);
+                    }
+                    
+                    const arrayBuffer = await response.arrayBuffer();
+                    const fileSizeBytes = arrayBuffer.byteLength;
+                    log(`📊 Frame ${frameNum} size: ${fileSizeBytes} bytes`);
+                    
+                    // Direct SplatData.Deserialize - the proven working method
+                    const buffer = new Uint8Array(arrayBuffer);
+                    const data = SPLAT.SplatData.Deserialize(buffer);
+                    const splat = new SPLAT.Splat(data);
+                    
+                    log(`✅ Frame ${frameNum} loaded: ${data.vertexCount} gaussians`);
+                    return splat;
+                    
+                } catch (error) {
+                    log(`❌ Failed to load frame ${frameNum}: ${error.message}`);
+                    throw error;
+                }
+            }
+
+            async loadFirstFrame() {
+                try {
+                    updateStatus('Loading first frame...', 'info');
+                    
+                    // Clear scene first
+                    scene.reset();
+                    this.currentSplat = null;
+                    
+                    // Load frame 1
+                    const firstFrame = await this.loadSingleFrame(1);
+                    
+                    // Add to scene
+                    scene.addObject(firstFrame);
+                    this.currentSplat = firstFrame;
+                    this.currentFrame = 1;
+                    this.isLoaded = true;
+                    
+                    // Position camera - same as working test
+                    this.positionCamera(firstFrame);
+                    
+                    // Update UI
+                    this.updatePlaybackInfo();
+                    
+                    updateStatus('✅ First frame loaded! Ready for sequence', 'success');
+                    log('✅ First frame ready for playback');
+                    
+                    return true;
+                } catch (error) {
+                    updateStatus(`❌ Failed to load first frame: ${error.message}`, 'error');
+                    log(`❌ First frame load failed: ${error.message}`);
+                    return false;
+                }
+            }
+
+            positionCamera(splat) {
+                if (!controls) return;
+                
+                try {
+                    const bounds = splat.bounds;
+                    const center = bounds.center();
+                    const size = bounds.size();
+                    const distance = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 2;
+                    
+                    camera.position = new SPLAT.Vector3(
+                        center.x + distance * 0.7,
+                        center.y + distance * 0.5,
+                        center.z + distance * 0.7
+                    );
+                    controls.setCameraTarget(center);
+                    
+                    log(`📹 Camera positioned at distance ${distance.toFixed(2)}`);
+                } catch (error) {
+                    log(`⚠️ Camera positioning failed: ${error.message}`);
+                }
+            }
+
+            replaceCurrentSplat(newSplat) {
+                // Remove current splat from scene
+                if (this.currentSplat) {
+                    scene.removeObject(this.currentSplat);
+                }
+                
+                // Add new splat to scene
+                scene.addObject(newSplat);
+                this.currentSplat = newSplat;
+                
+                this.updatePlaybackInfo();
+            }
+
+            async startSequence() {
+                if (!this.isLoaded) {
+                    updateStatus('❌ Load first frame first!', 'error');
+                    return;
+                }
+
+                if (this.isPlaying) return;
+                
+                this.isPlaying = true;
+                this.lastFrameTime = Date.now();
+                this.fpsStartTime = Date.now();
+                this.fpsCounter = 0;
+                
+                updateStatus('▶️ Playing 400-frame sequence at 25fps', 'success');
+                log(`▶️ Starting sequence playback from frame ${this.currentFrame}`);
+                playbackInfo.classList.add('visible');
+                
+                this.animationLoop();
+            }
+
+            async animationLoop() {
+                if (!this.isPlaying) return;
+                
+                const now = Date.now();
+                const deltaTime = now - this.lastFrameTime;
+                
+                if (deltaTime >= this.frameInterval) {
+                    await this.nextFrame();
+                    this.lastFrameTime = now;
+                    
+                    // Calculate FPS
+                    this.fpsCounter++;
+                    if (this.fpsCounter % 10 === 0) {
+                        const elapsed = (now - this.fpsStartTime) / 1000;
+                        this.actualFPS = Math.round(this.fpsCounter / elapsed);
+                    }
+                }
+                
+                if (this.isPlaying) {
+                    requestAnimationFrame(() => this.animationLoop());
+                }
+            }
+
+            async nextFrame() {
+                this.currentFrame++;
+                if (this.currentFrame > this.maxFrames) {
+                    this.currentFrame = 1; // Loop back
+                    log('🔄 Sequence looped back to frame 1');
+                }
+                
+                try {
+                    const frame = await this.loadSingleFrame(this.currentFrame);
+                    this.replaceCurrentSplat(frame);
+                    
+                    if (this.currentFrame % 50 === 0) {
+                        log(`📊 Sequence progress: frame ${this.currentFrame}/${this.maxFrames}`);
+                    }
+                    
+                } catch (error) {
+                    log(`⚠️ Frame ${this.currentFrame} failed, continuing: ${error.message}`);
+                    // Continue playing even if one frame fails
+                }
+            }
+
+            stop() {
+                this.isPlaying = false;
+                playbackInfo.classList.remove('visible');
+                updateStatus('⏹️ Sequence stopped', 'info');
+                log(`⏹️ Stopped at frame ${this.currentFrame}`);
+            }
+
+            updatePlaybackInfo() {
+                if (!this.currentSplat) return;
+                
+                document.getElementById('currentFrame').textContent = this.currentFrame;
+                document.getElementById('currentFPS').textContent = this.actualFPS;
+                document.getElementById('gaussianCount').textContent = this.currentSplat.data.vertexCount.toLocaleString();
+                document.getElementById('playStatus').textContent = this.isPlaying ? 'Playing' : 'Stopped';
+            }
+
+            placeInAR(position) {
+                if (this.currentSplat) {
+                    this.currentSplat.position = new SPLAT.Vector3(position.x, position.y, position.z);
+                    updateStatus('🚀 AR Mode: Sequence placed!', 'success');
+                    log(`🚀 AR placement: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
+                }
+            }
+        }
+
+        // Import gsplat.js - using the exact working method
         async function loadGsplat() {
             try {
                 // Add console.assert polyfill (gsplat.js needs this)
@@ -232,7 +473,7 @@
             }
         }
 
-        // Initialize gsplat.js components
+        // Initialize gsplat.js - using the exact working method
         async function initializeGSplat() {
             try {
                 updateLoadingText('Creating scene...');
@@ -271,7 +512,7 @@
             }
         }
 
-        // Start render loop
+        // Start render loop - using the exact working method
         function startRenderLoop() {
             log('🔄 Starting render loop...');
             
@@ -297,138 +538,85 @@
             log('✅ Render loop started');
         }
 
-        // Test loading single .splat file with format validation
-        async function testSingleSplat() {
+        // Button functions
+        async function loadFirstFrame() {
             if (!SPLAT) {
                 updateStatus('❌ gsplat.js not loaded!', 'error');
                 return;
             }
 
-            const url = './data/splat/frame_000001.splat';
-            
-            testBtn.disabled = true;
-            testBtn.textContent = '🔄 Loading...';
+            loadBtn.disabled = true;
+            loadBtn.textContent = '🔄 Loading...';
             
             try {
-                log('🧪 TESTING SINGLE .SPLAT FILE LOAD');
-                log(`📁 URL: ${url}`);
+                // Create sequence player
+                sequencePlayer = new SimpleSequencePlayer();
                 
-                // Step 1: Fetch the raw file data
-                log('🔍 Fetching raw file data...');
-                const response = await fetch(url);
-                log(`📊 Response: ${response.status} ${response.statusText}`);
+                // Load first frame
+                const success = await sequencePlayer.loadFirstFrame();
                 
-                if (!response.ok) {
-                    throw new Error(`File not found: ${response.status} ${response.statusText}`);
-                }
-                
-                const arrayBuffer = await response.arrayBuffer();
-                const fileSizeBytes = arrayBuffer.byteLength;
-                const fileSizeMB = (fileSizeBytes / 1024 / 1024).toFixed(2);
-                log(`📏 File size: ${fileSizeBytes} bytes (${fileSizeMB} MB)`);
-                
-                // Step 2: Validate .splat file format
-                const expectedGaussians = fileSizeBytes / 32;
-                log(`🧮 Expected gaussians: ${expectedGaussians.toLocaleString()} (at 32 bytes each)`);
-                
-                if (fileSizeBytes % 32 !== 0) {
-                    log(`⚠️ WARNING: File size ${fileSizeBytes} not divisible by 32!`);
-                    log(`🔧 Remainder: ${fileSizeBytes % 32} bytes`);
-                }
-                
-                // Step 3: Try direct SplatData.Deserialize (bypass Loader)
-                log('🔬 Testing direct SplatData.Deserialize()...');
-                try {
-                    const buffer = new Uint8Array(arrayBuffer);
-                    log(`📦 Created Uint8Array buffer: ${buffer.length} bytes`);
-                    
-                    // This is what Loader.LoadFromArrayBuffer does internally
-                    const data = SPLAT.SplatData.Deserialize(buffer);
-                    log(`✅ SplatData.Deserialize() succeeded!`);
-                    log(`🔢 Vertex count: ${data.vertexCount.toLocaleString()}`);
-                    
-                    // Step 4: Create Splat object
-                    log('🏗️ Creating Splat object...');
-                    scene.reset();
-                    const splat = new SPLAT.Splat(data);
-                    scene.addObject(splat);
-                    log(`✅ Splat object created and added to scene`);
-                    
-                    // Step 5: Position camera
-                    if (controls) {
-                        const bounds = splat.bounds;
-                        const center = bounds.center();
-                        const size = bounds.size();
-                        
-                        log(`📐 Bounds center: [${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}]`);
-                        log(`📏 Bounds size: [${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
-                        
-                        // Calculate distance using Vector3 magnitude
-                        const distance = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 2;
-                        log(`📏 Calculated distance: ${distance.toFixed(2)}`);
-                        
-                        // Fix camera positioning - use Vector3 constructor instead of .set()
-                        camera.position = new SPLAT.Vector3(
-                            center.x + distance * 0.7,
-                            center.y + distance * 0.5, 
-                            center.z + distance * 0.7
-                        );
-                        controls.setCameraTarget(center);
-                        log('📹 Camera positioned to view splat');
-                    }
-                    
-                    updateStatus(`✅ SUCCESS! Direct load: ${data.vertexCount.toLocaleString()} gaussians`, 'success');
-                    testBtn.textContent = '✅ Direct Load Success!';
-                    
-                } catch (deserializeError) {
-                    log(`❌ SplatData.Deserialize() failed: ${deserializeError.message}`);
-                    log(`📋 Deserialize error stack: ${deserializeError.stack}`);
-                    
-                    // Step 4: Try as PLY file instead
-                    log('🔄 Trying PLYLoader as fallback...');
-                    try {
-                        scene.reset();
-                        
-                        // Check if it might be a PLY file
-                        const header = new TextDecoder().decode(buffer.slice(0, 100));
-                        log(`📝 File header (first 100 chars): "${header}"`);
-                        
-                        if (header.startsWith('ply\n')) {
-                            log('🎯 File appears to be PLY format!');
-                            const splat = await SPLAT.PLYLoader.LoadAsync(url, scene);
-                            log(`✅ PLYLoader succeeded: ${splat.data.vertexCount.toLocaleString()} gaussians`);
-                            updateStatus(`✅ SUCCESS! PLY load: ${splat.data.vertexCount.toLocaleString()} gaussians`, 'success');
-                            testBtn.textContent = '✅ PLY Load Success!';
-                        } else {
-                            log('❌ File is not PLY format either');
-                            throw new Error(`File format not recognized. Header: "${header.slice(0, 20)}"`);
-                        }
-                        
-                    } catch (plyError) {
-                        log(`❌ PLYLoader also failed: ${plyError.message}`);
-                        throw deserializeError; // Throw the original error
-                    }
+                if (success) {
+                    loadBtn.textContent = '✅ Frame 1 Loaded';
+                    playBtn.disabled = false;
+                    arBtn.disabled = false;
+                } else {
+                    loadBtn.textContent = '❌ Failed';
+                    setTimeout(() => {
+                        loadBtn.textContent = '🎬 Load Frame 1';
+                        loadBtn.disabled = false;
+                    }, 3000);
                 }
                 
             } catch (error) {
-                log(`❌ COMPLETE FAILURE: ${error.message}`);
-                log(`📋 Error stack: ${error.stack}`);
-                log(`🔍 Error name: ${error.name}`);
-                
-                // Additional debugging info
-                log('🔬 DEBUGGING INFO:');
-                log(`- Is SPLAT defined? ${typeof SPLAT}`);
-                log(`- SPLAT.SplatData available? ${typeof SPLAT.SplatData}`);
-                log(`- SPLAT.SplatData.Deserialize available? ${typeof SPLAT.SplatData?.Deserialize}`);
-                
-                updateStatus(`❌ Failed: ${error.message}`, 'error');
-                testBtn.textContent = '❌ Failed - Try Again';
-                
+                log(`❌ Load first frame error: ${error.message}`);
+                loadBtn.textContent = '❌ Failed';
                 setTimeout(() => {
-                    testBtn.textContent = '🔬 Test Load frame_000001.splat';
-                    testBtn.disabled = false;
+                    loadBtn.textContent = '🎬 Load Frame 1';
+                    loadBtn.disabled = false;
                 }, 3000);
             }
+        }
+
+        function togglePlayback() {
+            if (!sequencePlayer || !sequencePlayer.isLoaded) {
+                updateStatus('❌ Load first frame first!', 'error');
+                return;
+            }
+            
+            if (sequencePlayer.isPlaying) {
+                sequencePlayer.stop();
+                playBtn.textContent = '▶️ Play Sequence';
+            } else {
+                sequencePlayer.startSequence();
+                playBtn.textContent = '⏸️ Stop';
+            }
+        }
+
+        function startAR() {
+            if (!sequencePlayer || !sequencePlayer.isLoaded) {
+                updateStatus('❌ Load first frame first!', 'error');
+                return;
+            }
+            
+            updateStatus('🎯 AR Mode - Tap anywhere to place sequence', 'info');
+            
+            // Simple click-to-place AR
+            const arPlacement = (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                const position = {
+                    x: x * 5,
+                    y: 0,
+                    z: y * 5
+                };
+                
+                sequencePlayer.placeInAR(position);
+                canvas.removeEventListener('click', arPlacement);
+            };
+            
+            canvas.addEventListener('click', arPlacement);
         }
 
         // Window resize handler
@@ -440,7 +628,7 @@
             }
         }
 
-        // Main initialization
+        // Main initialization - using the exact working method
         async function main() {
             try {
                 log('🚀 Starting application...');
@@ -459,10 +647,8 @@
                 
                 // Hide loading, enable test button
                 loading.classList.add('hidden');
-                testBtn.disabled = false;
-                
-                updateStatus('✅ Ready to test! Click button to load .splat file', 'success');
-                log('🎯 Application ready - click test button');
+                updateStatus('✅ Ready! Click "Load Frame 1" to start sequence', 'success');
+                log('🎯 Application ready - sequence player initialized');
                 
             } catch (error) {
                 log(`❌ Application startup failed: ${error.message}`);
@@ -474,10 +660,12 @@
         // Event listeners
         window.addEventListener('resize', handleResize);
         
-        // Global function for button
-        window.testSingleSplat = testSingleSplat;
+        // Global functions for buttons
+        window.loadFirstFrame = loadFirstFrame;
+        window.togglePlayback = togglePlayback;
+        window.startAR = startAR;
 
-        // Start the application
+        // Start the application - same as working test
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', main);
         } else {
