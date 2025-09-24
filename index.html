@@ -436,16 +436,27 @@
             updateStatus('🔍 Scanning ./data folders...', 'info');
             const folders = [];
             
-            // Common folder names to check (you can expand this)
-            const testFolders = ['pewpew', 'test', 'sample', 'demo', 'sequence1', 'sequence2', 'animation1'];
+            // Extended list of common folder names to check
+            const testFolders = [
+                'splat', 'pewpew', 'test', 'sample', 'demo', 'sequence1', 'sequence2', 'animation1',
+                'frames', 'sequence', 'animation', 'data', 'models', 'gaussians', 'render',
+                'output', 'export', 'converted', 'scenes', 'objects', 'assets'
+            ];
+            
+            console.log('🔍 Checking folders:', testFolders);
             
             for (const folderName of testFolders) {
                 try {
                     // Test if first frame exists
                     const testUrl = `./data/${folderName}/frame_000001.splat`;
+                    console.log(`🔍 Testing: ${testUrl}`);
+                    
                     const response = await fetch(testUrl, { method: 'HEAD' });
+                    console.log(`📁 ${folderName}: ${response.status} ${response.ok ? '✅' : '❌'}`);
                     
                     if (response.ok) {
+                        updateStatus(`✅ Found sequence: ${folderName}`, 'success');
+                        
                         // Detect max frames
                         const maxFrames = await detectMaxFrames(folderName);
                         folders.push({
@@ -453,12 +464,15 @@
                             maxFrames,
                             path: `./data/${folderName}`
                         });
+                        
+                        console.log(`📊 ${folderName}: ${maxFrames} frames detected`);
                     }
                 } catch (error) {
-                    console.log(`Folder ${folderName} not found or inaccessible`);
+                    console.log(`❌ Folder ${folderName}: ${error.message}`);
                 }
             }
             
+            console.log(`🎯 Total folders found: ${folders.length}`);
             return folders;
         }
 
