@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎭 AR Splat Sequence Demo - Single Sequence Test</title>
+    <title>🎭 AR Splat Sequence Demo - Proper .splat Loading</title>
     <style>
         * {
             margin: 0;
@@ -163,7 +163,7 @@
             background: rgba(46, 204, 113, 1);
         }
 
-        .device-info {
+        .debug-info {
             position: fixed;
             top: 130px;
             left: 10px;
@@ -192,42 +192,24 @@
         .playback-info.visible {
             display: block;
         }
-
-        .gesture-hint {
-            position: fixed;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 90;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            display: none;
-        }
-
-        .gesture-hint.visible {
-            display: block;
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 AR Splat Sequence Demo - Single Test</h1>
-        <p>Testing ./data/splat/ sequence (400 frames)</p>
+        <h1>🎭 AR Splat Sequence Demo - Proper .splat Loading</h1>
+        <p>Testing ./data/splat/ sequence using correct gsplat.js Loader</p>
     </div>
 
     <div class="status" id="status">Initializing AR Splat System...</div>
     
-    <div class="device-info" id="deviceInfo">
-        Device Info Loading...
+    <div class="debug-info" id="debugInfo">
+        Debug info will appear here...
     </div>
 
     <div class="playback-info" id="playbackInfo">
-        <div>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">0</span></div>
+        <div>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></div>
         <div>FPS: <span id="currentFPS">0</span></div>
-        <div>Memory: <span id="memoryUsage">0</span> MB</div>
-        <div>Buffer: <span id="bufferSize">0</span></div>
+        <div>Gaussians: <span id="gaussianCount">0</span></div>
     </div>
 
     <div class="loading" id="loading">
@@ -239,206 +221,84 @@
 
     <div class="controls">
         <div class="main-controls">
-            <button class="control-btn" id="loadSequenceBtn" onclick="loadSplatSequence()">🎬 Load Sequence</button>
-            <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play</button>
+            <button class="control-btn" id="loadFirstBtn" onclick="loadFirstFrame()">🎬 Load Frame 1</button>
+            <button class="control-btn" id="playBtn" onclick="toggleSequence()" disabled>▶️ Play Sequence</button>
             <button class="ar-button control-btn" id="arBtn" onclick="startAR()" disabled>🚀 AR Mode</button>
         </div>
-    </div>
-
-    <div class="gesture-hint" id="gestureHint">
-        👆 Tap to place • ✋ Two fingers to scale & rotate
     </div>
 
     <script type="module">
         // Global variables
         let SPLAT = null;
         let scene, camera, renderer, controls;
-        let deviceCapabilities = {};
-        let currentSplatPlayer = null;
-        let isARMode = false;
         let currentSplat = null;
+        let sequencePlayer = null;
 
         // DOM elements
         const canvas = document.getElementById('canvas3d');
         const loading = document.getElementById('loading');
         const status = document.getElementById('status');
-        const deviceInfo = document.getElementById('deviceInfo');
+        const debugInfo = document.getElementById('debugInfo');
         const playbackInfo = document.getElementById('playbackInfo');
-        const gestureHint = document.getElementById('gestureHint');
-        const loadSequenceBtn = document.getElementById('loadSequenceBtn');
+        const loadFirstBtn = document.getElementById('loadFirstBtn');
         const playBtn = document.getElementById('playBtn');
         const arBtn = document.getElementById('arBtn');
 
-        // Device capability detection
-        function detectDeviceCapabilities() {
-            const cores = navigator.hardwareConcurrency || 4;
-            const memory = navigator.deviceMemory || 4; // GB
-            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            
-            let bufferSize = 10; // Conservative default
-            let quality = 'medium';
-            
-            // Device-specific optimization
-            if (memory >= 8 && cores >= 6) {
-                bufferSize = 20;
-                quality = 'high';
-            } else if (memory >= 6 && cores >= 4) {
-                bufferSize = 15;
-                quality = 'medium-high';
-            } else if (memory >= 4) {
-                bufferSize = 12;
-                quality = 'medium';
-            }
-
-            deviceCapabilities = {
-                cores,
-                memory,
-                isMobile,
-                bufferSize,
-                quality,
-                maxConcurrentLoads: Math.min(cores, 4),
-                preloadFrames: Math.min(bufferSize / 4, 5)
-            };
-
-            updateDeviceInfo();
-            return deviceCapabilities;
+        // Debug logging
+        function debugLog(message) {
+            console.log('[DEBUG]', message);
+            debugInfo.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
+            debugInfo.scrollTop = debugInfo.scrollHeight;
         }
 
-        function updateDeviceInfo() {
-            deviceInfo.innerHTML = `
-                <div>Device: ${deviceCapabilities.isMobile ? 'Mobile' : 'Desktop'}</div>
-                <div>CPU Cores: ${deviceCapabilities.cores}</div>
-                <div>RAM: ${deviceCapabilities.memory}GB</div>
-                <div>Quality: ${deviceCapabilities.quality}</div>
-                <div>Buffer: ${deviceCapabilities.bufferSize} frames</div>
-            `;
-        }
-
-        // Simplified Splat Sequence Player Class
+        // Sequence Player Class - using proper gsplat.js Loader
         class SplatSequencePlayer {
             constructor() {
                 this.folderPath = './data/splat';
-                this.maxFrames = 400; // Known frame count
+                this.maxFrames = 400;
                 this.currentFrame = 1;
                 this.isPlaying = false;
-                this.frameCache = new Map();
-                this.bufferSize = deviceCapabilities.bufferSize;
-                this.lastFrameTime = 0;
                 this.targetFPS = 25;
                 this.frameInterval = 1000 / this.targetFPS;
+                this.lastFrameTime = 0;
                 this.actualFPS = 0;
                 this.fpsCounter = 0;
                 this.fpsStartTime = Date.now();
-                this.isLoaded = false;
             }
 
-            async loadFrame(frameNum) {
-                const cacheKey = `frame_${frameNum}`;
-                
-                if (this.frameCache.has(cacheKey)) {
-                    return this.frameCache.get(cacheKey);
-                }
-
+            async loadSingleFrame(frameNum) {
                 const frameNumStr = frameNum.toString().padStart(6, '0');
                 const url = `${this.folderPath}/frame_${frameNumStr}.splat`;
                 
                 try {
-                    console.log(`🔄 Loading frame ${frameNum}: ${url}`);
-                    const splat = await SPLAT.Loader.LoadAsync(url, scene);
+                    debugLog(`Loading frame ${frameNum}: ${url}`);
                     
-                    // Cache management
-                    if (this.frameCache.size >= this.bufferSize) {
-                        this.cleanupOldFrames();
-                    }
+                    // Clear the scene first (important!)
+                    scene.reset();
+                    currentSplat = null;
                     
-                    this.frameCache.set(cacheKey, splat);
-                    console.log(`✅ Frame ${frameNum} loaded successfully`);
+                    // Use proper gsplat.js Loader with progress callback
+                    const splat = await SPLAT.Loader.LoadAsync(url, scene, (progress) => {
+                        if (progress < 1.0) {
+                            const percent = (progress * 100).toFixed(0);
+                            updateStatus(`Loading frame ${frameNum}: ${percent}%`, 'info');
+                        }
+                    });
+                    
+                    currentSplat = splat;
+                    debugLog(`✅ Frame ${frameNum} loaded: ${splat.data.vertexCount} gaussians`);
+                    
+                    // Update UI
+                    this.updatePlaybackInfo(frameNum, splat.data.vertexCount);
+                    
                     return splat;
                 } catch (error) {
-                    console.error(`❌ Failed to load frame ${frameNum}:`, error);
+                    debugLog(`❌ Failed to load frame ${frameNum}: ${error.message}`);
                     throw error;
                 }
             }
 
-            cleanupOldFrames() {
-                const framesToKeep = this.bufferSize - 3;
-                const cacheEntries = Array.from(this.frameCache.entries());
-                
-                for (let i = 0; i < cacheEntries.length - framesToKeep; i++) {
-                    const [key, splat] = cacheEntries[i];
-                    if (splat && splat !== currentSplat) {
-                        scene.removeObject(splat);
-                        splat.dispose?.();
-                    }
-                    this.frameCache.delete(key);
-                }
-            }
-
-            async loadFirstFrame() {
-                try {
-                    updateStatus('🎬 Loading first frame...', 'info');
-                    const firstFrame = await this.loadFrame(1);
-                    
-                    if (firstFrame) {
-                        this.replaceCurrentSplat(firstFrame);
-                        this.currentFrame = 1;
-                        this.isLoaded = true;
-                        
-                        // Preload a few more frames
-                        this.preloadNextFrames();
-                        
-                        updateStatus('✅ First frame loaded! Ready to play', 'success');
-                        playBtn.disabled = false;
-                        arBtn.disabled = false;
-                        
-                        return true;
-                    }
-                } catch (error) {
-                    updateStatus(`❌ Failed to load first frame: ${error.message}`, 'error');
-                    console.error('Load first frame error:', error);
-                    return false;
-                }
-            }
-
-            async preloadNextFrames() {
-                const framesToPreload = [];
-                const startFrame = this.currentFrame + 1;
-                const endFrame = Math.min(startFrame + deviceCapabilities.preloadFrames, this.maxFrames);
-                
-                for (let i = startFrame; i <= endFrame; i++) {
-                    const cacheKey = `frame_${i}`;
-                    if (!this.frameCache.has(cacheKey)) {
-                        framesToPreload.push(i);
-                    }
-                }
-                
-                // Load frames in parallel (limited by device capabilities)
-                const loadPromises = framesToPreload.slice(0, deviceCapabilities.maxConcurrentLoads)
-                    .map(frameNum => this.loadFrame(frameNum).catch(err => {
-                        console.warn(`Failed to preload frame ${frameNum}:`, err);
-                    }));
-                
-                await Promise.allSettled(loadPromises);
-                console.log(`🔄 Preloaded ${framesToPreload.length} frames`);
-            }
-
-            replaceCurrentSplat(newSplat) {
-                // Remove current splat from scene
-                if (currentSplat) {
-                    scene.removeObject(currentSplat);
-                }
-                
-                // Add new splat to scene (don't dispose, keep in cache)
-                currentSplat = newSplat;
-                this.updatePlaybackInfo();
-            }
-
-            async play() {
-                if (!this.isLoaded) {
-                    updateStatus('❌ Load sequence first!', 'error');
-                    return;
-                }
-
+            async playSequence() {
                 if (this.isPlaying) return;
                 
                 this.isPlaying = true;
@@ -446,13 +306,14 @@
                 this.fpsStartTime = Date.now();
                 this.fpsCounter = 0;
                 
-                updateStatus(`▶️ Playing splat sequence (${this.maxFrames} frames at 25fps)`, 'success');
+                debugLog('▶️ Starting sequence playback');
+                updateStatus('▶️ Playing sequence at 25fps', 'success');
                 playbackInfo.classList.add('visible');
                 
-                this.playLoop();
+                this.animationLoop();
             }
 
-            async playLoop() {
+            async animationLoop() {
                 if (!this.isPlaying) return;
                 
                 const now = Date.now();
@@ -462,7 +323,7 @@
                     await this.nextFrame();
                     this.lastFrameTime = now;
                     
-                    // FPS calculation
+                    // Calculate FPS
                     this.fpsCounter++;
                     if (this.fpsCounter % 10 === 0) {
                         const elapsed = (now - this.fpsStartTime) / 1000;
@@ -471,60 +332,35 @@
                 }
                 
                 if (this.isPlaying) {
-                    requestAnimationFrame(() => this.playLoop());
+                    requestAnimationFrame(() => this.animationLoop());
                 }
             }
 
             async nextFrame() {
                 this.currentFrame++;
-                
                 if (this.currentFrame > this.maxFrames) {
-                    this.currentFrame = 1; // Loop back
+                    this.currentFrame = 1; // Loop
                 }
                 
                 try {
-                    const frame = await this.loadFrame(this.currentFrame);
-                    if (frame) {
-                        this.replaceCurrentSplat(frame);
-                        this.updatePlaybackInfo();
-                        
-                        // Trigger preloading occasionally
-                        if (this.currentFrame % 5 === 0) {
-                            this.preloadNextFrames();
-                        }
-                    }
+                    await this.loadSingleFrame(this.currentFrame);
                 } catch (error) {
-                    console.error(`Error loading frame ${this.currentFrame}:`, error);
+                    debugLog(`Error in nextFrame: ${error.message}`);
+                    // Continue playing even if one frame fails
                 }
             }
 
             stop() {
                 this.isPlaying = false;
-                playbackInfo.classList.remove('visible');
-                updateStatus('⏹️ Playback stopped', 'info');
-                playBtn.textContent = '▶️ Play';
+                debugLog('⏹️ Sequence stopped');
+                updateStatus('⏹️ Sequence stopped', 'info');
+                playBtn.textContent = '▶️ Play Sequence';
             }
 
-            updatePlaybackInfo() {
-                document.getElementById('currentFrame').textContent = this.currentFrame;
-                document.getElementById('totalFrames').textContent = this.maxFrames;
+            updatePlaybackInfo(frameNum, gaussianCount) {
+                document.getElementById('currentFrame').textContent = frameNum;
                 document.getElementById('currentFPS').textContent = this.actualFPS;
-                document.getElementById('memoryUsage').textContent = Math.round(this.frameCache.size * 5);
-                document.getElementById('bufferSize').textContent = this.frameCache.size;
-            }
-
-            dispose() {
-                this.stop();
-                this.frameCache.forEach(splat => {
-                    if (splat) {
-                        scene.removeObject(splat);
-                        splat.dispose?.();
-                    }
-                });
-                this.frameCache.clear();
-                playbackInfo.classList.remove('visible');
-                playBtn.disabled = true;
-                arBtn.disabled = true;
+                document.getElementById('gaussianCount').textContent = gaussianCount.toLocaleString();
             }
         }
 
@@ -535,13 +371,13 @@
                 updateLoadingText('Loading gsplat.js library...');
                 
                 SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
-                updateStatus('✅ gsplat.js loaded successfully!', 'success');
-                console.log('Available SPLAT classes:', Object.keys(SPLAT));
+                debugLog('✅ gsplat.js loaded successfully');
+                debugLog(`Available classes: ${Object.keys(SPLAT).slice(0, 10).join(', ')}...`);
                 
                 return true;
             } catch (error) {
                 updateStatus(`❌ Failed to load gsplat.js: ${error.message}`, 'error');
-                console.error('gsplat.js import failed:', error);
+                debugLog(`Failed to load gsplat.js: ${error.message}`);
                 return false;
             }
         }
@@ -553,29 +389,34 @@
                 scene = new SPLAT.Scene();
                 camera = new SPLAT.Camera();
                 camera.position = new SPLAT.Vector3(0, 1.6, 3);
+                debugLog('Scene and camera created');
                 
                 updateLoadingText('Creating WebGL renderer...');
                 renderer = new SPLAT.WebGLRenderer(canvas);
+                debugLog('Renderer created');
                 
                 updateLoadingText('Setting up camera controls...');
                 controls = new SPLAT.OrbitControls(camera, canvas);
+                debugLog('Controls created');
                 
                 // Configure camera and renderer
                 camera.data.setSize(window.innerWidth, window.innerHeight);
                 renderer.setSize(window.innerWidth, window.innerHeight);
+                debugLog('Camera and renderer configured');
                 
-                updateStatus('✅ gsplat.js initialized successfully!', 'success');
                 return true;
                 
             } catch (error) {
                 updateStatus(`❌ gsplat.js initialization failed: ${error.message}`, 'error');
-                console.error('Initialization error:', error);
+                debugLog(`Initialization failed: ${error.message}`);
                 return false;
             }
         }
 
         // Render loop
         function startRenderLoop() {
+            debugLog('Starting render loop');
+            
             function render() {
                 try {
                     if (controls) {
@@ -587,7 +428,7 @@
                     }
                 } catch (error) {
                     if (!render.errorLogged) {
-                        console.error('Render error:', error);
+                        debugLog(`Render error: ${error.message}`);
                         render.errorLogged = true;
                     }
                 }
@@ -600,62 +441,82 @@
         function updateStatus(message, type = 'info') {
             status.textContent = message;
             status.className = `status ${type}`;
-            console.log(`[${type.toUpperCase()}] ${message}`);
+            debugLog(`[${type.toUpperCase()}] ${message}`);
         }
 
         function updateLoadingText(text) {
             document.getElementById('loadingText').textContent = text;
         }
 
-        // Main functions for buttons
-        async function loadSplatSequence() {
-            if (currentSplatPlayer) {
-                currentSplatPlayer.dispose();
+        // Button functions
+        async function loadFirstFrame() {
+            if (!SPLAT) {
+                updateStatus('❌ gsplat.js not loaded yet!', 'error');
+                return;
             }
             
-            loadSequenceBtn.disabled = true;
-            loadSequenceBtn.textContent = '🔄 Loading...';
+            loadFirstBtn.disabled = true;
+            loadFirstBtn.textContent = '🔄 Loading...';
             
-            currentSplatPlayer = new SplatSequencePlayer();
-            const success = await currentSplatPlayer.loadFirstFrame();
-            
-            if (success) {
-                loadSequenceBtn.textContent = '✅ Loaded';
-                loadSequenceBtn.disabled = false;
-            } else {
-                loadSequenceBtn.textContent = '❌ Failed';
+            try {
+                // Create sequence player
+                sequencePlayer = new SplatSequencePlayer();
+                
+                // Load first frame
+                await sequencePlayer.loadSingleFrame(1);
+                
+                updateStatus('✅ Frame 1 loaded successfully!', 'success');
+                loadFirstBtn.textContent = '✅ Frame 1 Loaded';
+                playBtn.disabled = false;
+                arBtn.disabled = false;
+                
+                // Set camera target for better viewing
+                if (controls && currentSplat) {
+                    const bounds = currentSplat.bounds;
+                    const center = bounds.center();
+                    const distance = bounds.size().length() * 2;
+                    
+                    camera.position.set(center.x, center.y + distance * 0.5, center.z + distance);
+                    controls.setCameraTarget(center);
+                    debugLog('Camera positioned for optimal viewing');
+                }
+                
+            } catch (error) {
+                updateStatus(`❌ Failed to load first frame: ${error.message}`, 'error');
+                debugLog(`Load failed: ${error.message}`);
+                
+                loadFirstBtn.textContent = '❌ Failed';
                 setTimeout(() => {
-                    loadSequenceBtn.textContent = '🎬 Load Sequence';
-                    loadSequenceBtn.disabled = false;
+                    loadFirstBtn.textContent = '🎬 Load Frame 1';
+                    loadFirstBtn.disabled = false;
                 }, 2000);
             }
         }
 
-        function togglePlayback() {
-            if (!currentSplatPlayer || !currentSplatPlayer.isLoaded) {
-                updateStatus('❌ Load sequence first!', 'error');
+        function toggleSequence() {
+            if (!sequencePlayer) {
+                updateStatus('❌ Load first frame first!', 'error');
                 return;
             }
             
-            if (currentSplatPlayer.isPlaying) {
-                currentSplatPlayer.stop();
-                playBtn.textContent = '▶️ Play';
+            if (sequencePlayer.isPlaying) {
+                sequencePlayer.stop();
+                playBtn.textContent = '▶️ Play Sequence';
             } else {
-                currentSplatPlayer.play();
-                playBtn.textContent = '⏸️ Pause';
+                sequencePlayer.playSequence();
+                playBtn.textContent = '⏸️ Stop';
             }
         }
 
         function startAR() {
-            if (!currentSplatPlayer || !currentSplatPlayer.isLoaded) {
-                updateStatus('❌ Load sequence first!', 'error');
+            if (!currentSplat) {
+                updateStatus('❌ Load a frame first!', 'error');
                 return;
             }
             
-            updateStatus('🚀 AR mode - Tap anywhere to place sequence', 'info');
-            gestureHint.classList.add('visible');
+            updateStatus('🚀 AR mode - Click anywhere to place splat', 'info');
             
-            // Simple AR simulation - click to place
+            // Simple click-to-place AR simulation
             const arPlacement = (event) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -663,8 +524,8 @@
                 
                 // Move current splat to clicked position
                 if (currentSplat) {
-                    currentSplat.position.set(x * 3, 0, y * 3);
-                    updateStatus('✅ Sequence placed! Two fingers to scale/rotate', 'success');
+                    currentSplat.position.set(x * 5, 0, y * 5);
+                    updateStatus('✅ Splat placed! Sequence will play at new location', 'success');
                 }
                 
                 canvas.removeEventListener('click', arPlacement);
@@ -687,9 +548,6 @@
         // Main application entry point
         async function main() {
             try {
-                updateLoadingText('Detecting device capabilities...');
-                detectDeviceCapabilities();
-                
                 updateLoadingText('Loading gsplat.js library...');
                 const gSplatLoaded = await loadGsplat();
                 
@@ -709,11 +567,12 @@
                 
                 // Hide loading screen
                 loading.classList.add('hidden');
-                updateStatus('✅ Ready! Click "Load Sequence" to start', 'success');
+                updateStatus('✅ Ready! Click "Load Frame 1" to test .splat loading', 'success');
+                debugLog('🎯 Application initialized successfully');
                 
             } catch (error) {
                 updateStatus(`❌ Application failed to start: ${error.message}`, 'error');
-                console.error('Main initialization error:', error);
+                debugLog(`Main error: ${error.message}`);
                 loading.classList.add('hidden');
             }
         }
@@ -722,8 +581,8 @@
         window.addEventListener('resize', handleResize);
 
         // Global functions for buttons
-        window.loadSplatSequence = loadSplatSequence;
-        window.togglePlayback = togglePlayback;
+        window.loadFirstFrame = loadFirstFrame;
+        window.toggleSequence = toggleSequence;
         window.startAR = startAR;
 
         // Start the application
@@ -733,8 +592,9 @@
             main();
         }
 
-        console.log('🎭 AR Splat Demo - Single Sequence Test');
-        console.log('🎯 Testing ./data/splat/ with 400 frames');
+        console.log('🎭 AR Splat Demo - Proper .splat Loading');
+        console.log('🎯 Using gsplat.js Loader.LoadAsync() for individual .splat files');
+        console.log('📊 SplatData.RowLength = 32 bytes per gaussian');
 
     </script>
 </body>
