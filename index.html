@@ -235,8 +235,8 @@
             log(`LOADING: ${text}`);
         }
 
-        // Simple Sequence Player
-        class SimpleSequencePlayer {
+        // Optimized Sequence Player for smooth 25fps playback
+        class SmoothSequencePlayer {
             constructor() {
                 this.folderPath = './data/splat';
                 this.maxFrames = 400;
@@ -251,16 +251,34 @@
                 this.fpsStartTime = Date.now();
                 this.isLoaded = false;
                 
-                log('🎬 Simple sequence player created');
+                // Frame caching for smooth playback
+                this.frameCache = new Map();
+                this.bufferSize = 10; // Keep 10 frames in memory
+                this.preloadAhead = 5; // Preload 5 frames ahead
+                this.isPreloading = false;
+                
+                // Loading queue for smooth preloading
+                this.loadingQueue = [];
+                this.maxConcurrentLoads = 2;
+                this.currentLoads = 0;
+                
+                log('🎬 Smooth sequence player created with frame caching');
             }
 
-            async loadSingleFrame(frameNum) {
+            async loadSingleFrame(frameNum, isPreload = false) {
+                const cacheKey = `frame_${frameNum}`;
+                
+                // Return cached frame if available
+                if (this.frameCache.has(cacheKey)) {
+                    if (!isPreload) log(`💾 Using cached frame ${frameNum}`);
+                    return this.frameCache.get(cacheKey);
+                }
+
                 const frameNumStr = frameNum.toString().padStart(6, '0');
                 const url = `${this.folderPath}/frame_${frameNumStr}.splat`;
                 
                 try {
-                    // Use the exact same method that worked for single frame test
-                    log(`📥 Loading frame ${frameNum}: ${url}`);
+                    if (!isPreload) log(`📥 Loading frame ${frameNum}: ${url}`);
                     
                     const response = await fetch(url);
                     if (!response.ok) {
@@ -268,21 +286,96 @@
                     }
                     
                     const arrayBuffer = await response.arrayBuffer();
-                    const fileSizeBytes = arrayBuffer.byteLength;
-                    log(`📊 Frame ${frameNum} size: ${fileSizeBytes} bytes`);
                     
                     // Direct SplatData.Deserialize - the proven working method
                     const buffer = new Uint8Array(arrayBuffer);
                     const data = SPLAT.SplatData.Deserialize(buffer);
                     const splat = new SPLAT.Splat(data);
                     
-                    log(`✅ Frame ${frameNum} loaded: ${data.vertexCount} gaussians`);
+                    // Cache management - keep only recent frames
+                    if (this.frameCache.size >= this.bufferSize) {
+                        this.cleanupCache(frameNum);
+                    }
+                    
+                    this.frameCache.set(cacheKey, splat);
+                    
+                    if (!isPreload) {
+                        log(`✅ Frame ${frameNum} loaded: ${data.vertexCount} gaussians`);
+                    }
+                    
                     return splat;
                     
                 } catch (error) {
                     log(`❌ Failed to load frame ${frameNum}: ${error.message}`);
                     throw error;
                 }
+            }
+
+            cleanupCache(currentFrame) {
+                // Remove frames that are far from current playback position
+                const framesToRemove = [];
+                
+                for (const [cacheKey] of this.frameCache.entries()) {
+                    const frameNum = parseInt(cacheKey.replace('frame_', ''));
+                    const distance = Math.abs(frameNum - currentFrame);
+                    
+                    // Keep frames within buffer range
+                    if (distance > this.bufferSize) {
+                        framesToRemove.push(cacheKey);
+                    }
+                }
+                
+                // Remove oldest frames
+                framesToRemove.slice(0, Math.max(1, framesToRemove.length - 3)).forEach(key => {
+                    const splat = this.frameCache.get(key);
+                    if (splat && splat !== this.currentSplat) {
+                        // Don't dispose, just remove from cache
+                        this.frameCache.delete(key);
+                    }
+                });
+                
+                if (framesToRemove.length > 0) {
+                    log(`🧹 Cleaned ${framesToRemove.length} frames from cache`);
+                }
+            }
+
+            async preloadFrames(fromFrame, count) {
+                if (this.isPreloading) return;
+                this.isPreloading = true;
+                
+                const framesToLoad = [];
+                for (let i = 0; i < count; i++) {
+                    let frameNum = fromFrame + i;
+                    if (frameNum > this.maxFrames) frameNum = frameNum - this.maxFrames; // Wrap around
+                    
+                    const cacheKey = `frame_${frameNum}`;
+                    if (!this.frameCache.has(cacheKey)) {
+                        framesToLoad.push(frameNum);
+                    }
+                }
+                
+                if (framesToLoad.length > 0) {
+                    log(`🔄 Preloading ${framesToLoad.length} frames: ${framesToLoad[0]} to ${framesToLoad[framesToLoad.length-1]}`);
+                    
+                    // Load frames in small batches to avoid blocking
+                    for (let i = 0; i < framesToLoad.length; i += this.maxConcurrentLoads) {
+                        const batch = framesToLoad.slice(i, i + this.maxConcurrentLoads);
+                        const loadPromises = batch.map(frameNum => 
+                            this.loadSingleFrame(frameNum, true).catch(err => {
+                                log(`⚠️ Preload failed for frame ${frameNum}: ${err.message}`);
+                            })
+                        );
+                        
+                        await Promise.allSettled(loadPromises);
+                        
+                        // Small delay between batches to keep UI responsive
+                        if (i + this.maxConcurrentLoads < framesToLoad.length) {
+                            await new Promise(resolve => setTimeout(resolve, 10));
+                        }
+                    }
+                }
+                
+                this.isPreloading = false;
             }
 
             async loadFirstFrame() {
@@ -292,6 +385,7 @@
                     // Clear scene first
                     scene.reset();
                     this.currentSplat = null;
+                    this.frameCache.clear();
                     
                     // Load frame 1
                     const firstFrame = await this.loadSingleFrame(1);
@@ -302,14 +396,18 @@
                     this.currentFrame = 1;
                     this.isLoaded = true;
                     
-                    // Position camera - same as working test
+                    // Position camera
                     this.positionCamera(firstFrame);
+                    
+                    // Start preloading next frames for smooth playback
+                    updateStatus('Preloading frames for smooth playback...', 'info');
+                    await this.preloadFrames(2, this.preloadAhead);
                     
                     // Update UI
                     this.updatePlaybackInfo();
                     
-                    updateStatus('✅ First frame loaded! Ready for sequence', 'success');
-                    log('✅ First frame ready for playback');
+                    updateStatus('✅ First frame loaded with preloading! Ready for smooth sequence', 'success');
+                    log(`✅ First frame ready with ${this.frameCache.size} frames cached`);
                     
                     return true;
                 } catch (error) {
@@ -342,7 +440,7 @@
             }
 
             replaceCurrentSplat(newSplat) {
-                // Remove current splat from scene
+                // Remove current splat from scene (but keep in cache)
                 if (this.currentSplat) {
                     scene.removeObject(this.currentSplat);
                 }
@@ -363,30 +461,44 @@
                 if (this.isPlaying) return;
                 
                 this.isPlaying = true;
-                this.lastFrameTime = Date.now();
-                this.fpsStartTime = Date.now();
+                this.lastFrameTime = performance.now(); // Use high-precision timing
+                this.fpsStartTime = performance.now();
                 this.fpsCounter = 0;
                 
-                updateStatus('▶️ Playing 400-frame sequence at 25fps', 'success');
-                log(`▶️ Starting sequence playback from frame ${this.currentFrame}`);
+                updateStatus('▶️ Playing smooth 400-frame sequence at 25fps', 'success');
+                log(`▶️ Starting smooth sequence playback from frame ${this.currentFrame}`);
                 playbackInfo.classList.add('visible');
                 
+                // Start aggressive preloading
+                this.continuousPreload();
+                
                 this.animationLoop();
+            }
+
+            async continuousPreload() {
+                // Continuously preload frames ahead of playback
+                while (this.isPlaying) {
+                    const nextPreloadFrame = this.currentFrame + this.preloadAhead;
+                    await this.preloadFrames(nextPreloadFrame, 3);
+                    
+                    // Wait a bit before next preload cycle
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
             }
 
             async animationLoop() {
                 if (!this.isPlaying) return;
                 
-                const now = Date.now();
+                const now = performance.now();
                 const deltaTime = now - this.lastFrameTime;
                 
                 if (deltaTime >= this.frameInterval) {
                     await this.nextFrame();
                     this.lastFrameTime = now;
                     
-                    // Calculate FPS
+                    // Calculate FPS more frequently for smoother display
                     this.fpsCounter++;
-                    if (this.fpsCounter % 10 === 0) {
+                    if (this.fpsCounter % 5 === 0) {
                         const elapsed = (now - this.fpsStartTime) / 1000;
                         this.actualFPS = Math.round(this.fpsCounter / elapsed);
                     }
@@ -405,11 +517,25 @@
                 }
                 
                 try {
-                    const frame = await this.loadSingleFrame(this.currentFrame);
-                    this.replaceCurrentSplat(frame);
+                    // Try to get frame from cache first (should be instant)
+                    let frame = null;
+                    const cacheKey = `frame_${this.currentFrame}`;
                     
-                    if (this.currentFrame % 50 === 0) {
-                        log(`📊 Sequence progress: frame ${this.currentFrame}/${this.maxFrames}`);
+                    if (this.frameCache.has(cacheKey)) {
+                        frame = this.frameCache.get(cacheKey);
+                        // Smooth playback - frame should already be loaded
+                    } else {
+                        // Fallback: load on-demand (this shouldn't happen often with good preloading)
+                        log(`⚠️ Cache miss for frame ${this.currentFrame}, loading on-demand`);
+                        frame = await this.loadSingleFrame(this.currentFrame);
+                    }
+                    
+                    if (frame) {
+                        this.replaceCurrentSplat(frame);
+                    }
+                    
+                    if (this.currentFrame % 25 === 0) {
+                        log(`📊 Smooth playback: frame ${this.currentFrame}/${this.maxFrames}, cache: ${this.frameCache.size}`);
                     }
                     
                 } catch (error) {
@@ -420,9 +546,10 @@
 
             stop() {
                 this.isPlaying = false;
+                this.isPreloading = false;
                 playbackInfo.classList.remove('visible');
-                updateStatus('⏹️ Sequence stopped', 'info');
-                log(`⏹️ Stopped at frame ${this.currentFrame}`);
+                updateStatus('⏹️ Smooth sequence stopped', 'info');
+                log(`⏹️ Stopped at frame ${this.currentFrame}, cache: ${this.frameCache.size} frames`);
             }
 
             updatePlaybackInfo() {
@@ -431,15 +558,30 @@
                 document.getElementById('currentFrame').textContent = this.currentFrame;
                 document.getElementById('currentFPS').textContent = this.actualFPS;
                 document.getElementById('gaussianCount').textContent = this.currentSplat.data.vertexCount.toLocaleString();
-                document.getElementById('playStatus').textContent = this.isPlaying ? 'Playing' : 'Stopped';
+                document.getElementById('playStatus').textContent = this.isPlaying ? `Playing (${this.frameCache.size} cached)` : 'Stopped';
             }
 
             placeInAR(position) {
                 if (this.currentSplat) {
                     this.currentSplat.position = new SPLAT.Vector3(position.x, position.y, position.z);
-                    updateStatus('🚀 AR Mode: Sequence placed!', 'success');
+                    updateStatus('🚀 AR Mode: Smooth sequence placed!', 'success');
                     log(`🚀 AR placement: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
                 }
+            }
+
+            dispose() {
+                this.stop();
+                // Clear all cached frames
+                this.frameCache.forEach(splat => {
+                    if (splat && splat !== this.currentSplat) {
+                        // Dispose frames properly
+                        if (scene.objects.includes(splat)) {
+                            scene.removeObject(splat);
+                        }
+                    }
+                });
+                this.frameCache.clear();
+                log('🗑️ Smooth sequence player disposed');
             }
         }
 
@@ -549,8 +691,8 @@
             loadBtn.textContent = '🔄 Loading...';
             
             try {
-                // Create sequence player
-                sequencePlayer = new SimpleSequencePlayer();
+                // Create smooth sequence player
+                sequencePlayer = new SmoothSequencePlayer();
                 
                 // Load first frame
                 const success = await sequencePlayer.loadFirstFrame();
