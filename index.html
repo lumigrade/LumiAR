@@ -148,7 +148,7 @@
 <body>
     <div class="header">
         <h1>🎯 Single .splat File Test</h1>
-        <p>Testing: ./data/splat/frame_000001.splat</p>
+        <p>Testing: https://github.com/lumigrade/LumiAR/raw/main/data/splat/frame_000001.splat</p>
     </div>
 
     <div class="status" id="status">Initializing...</div>
@@ -304,7 +304,7 @@
                 return;
             }
 
-            const url = './data/splat/frame_000001.splat';
+            const url = 'https://github.com/lumigrade/LumiAR/raw/main/data/splat/frame_000001.splat';
             
             testBtn.disabled = true;
             testBtn.textContent = '🔄 Loading...';
@@ -359,7 +359,13 @@
                         const bounds = splat.bounds;
                         const center = bounds.center();
                         const size = bounds.size();
-                        const distance = size.length() * 2;
+                        
+                        log(`📐 Bounds center: [${center.x.toFixed(2)}, ${center.y.toFixed(2)}, ${center.z.toFixed(2)}]`);
+                        log(`📏 Bounds size: [${size.x.toFixed(2)}, ${size.y.toFixed(2)}, ${size.z.toFixed(2)}]`);
+                        
+                        // Calculate distance using Vector3 magnitude
+                        const distance = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 2;
+                        log(`📏 Calculated distance: ${distance.toFixed(2)}`);
                         
                         camera.position.set(
                             center.x + distance * 0.7,
