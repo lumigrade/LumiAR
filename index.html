@@ -70,6 +70,165 @@
             border-radius: 4px;
             font-family: 'Courier New', monospace;
         }
+
+        /* Viewer styles when loaded */
+        .viewer-active #info {
+            z-index: 100;
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+            max-width: 200px;
+        }
+        
+        .viewer-active #info h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+        }
+        
+        .viewer-active #info p {
+            margin: 2px 0;
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
+        .viewer-active details {
+            font-size: 10px;
+        }
+
+        .viewer-active #instructions {
+            background: rgba(0, 0, 0, 0.9);
+            white-space: pre-wrap;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 9px;
+            margin-top: 5px;
+        }
+        
+        .viewer-active #progress {
+            position: absolute;
+            top: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            z-index: 99;
+            transition: width 0.3s ease-in-out;
+        }
+
+        .viewer-active #message {
+            position: absolute;
+            display: flex;
+            top: 0;
+            right: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 1000;
+            height: 100%;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+            color: #ff6b6b;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(5px);
+        }
+
+        .viewer-active .scene {
+            position: absolute;
+            display: flex;
+            top: 0;
+            right: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 2;
+            height: 100%;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .viewer-active #canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            cursor: grab;
+        }
+
+        .viewer-active #canvas:active {
+            cursor: grabbing;
+        }
+
+        .viewer-active #quality, .viewer-active #caminfo {
+            position: absolute;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 6px 10px;
+            border-radius: 15px;
+            font-size: 11px;
+            backdrop-filter: blur(10px);
+        }
+
+        .viewer-active #quality {
+            bottom: 10px;
+            right: 10px;
+        }
+
+        .viewer-active #caminfo {
+            top: 10px;
+            right: 10px;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
+            50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
+            100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
+        }
+
+        .cube-wrapper {
+            transform-style: preserve-3d;
+        }
+
+        .cube {
+            transform-style: preserve-3d;
+            transform: rotateX(45deg) rotateZ(45deg);
+            animation: rotation 2s infinite;
+        }
+
+        .cube-faces {
+            transform-style: preserve-3d;
+            height: 60px;
+            width: 60px;
+            position: relative;
+            transform-origin: 0 0;
+            transform: translateX(0) translateY(0) translateZ(-30px);
+        }
+
+        .cube-face {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: solid 1px rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        
+        .cube-face.top { transform: translateZ(60px); }
+        .cube-face.front { transform-origin: 0 50%; transform: rotateY(-90deg); }
+        .cube-face.back { transform-origin: 0 50%; transform: rotateY(-90deg) translateZ(-60px); }
+        .cube-face.right { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px); }
+        .cube-face.left { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px) translateZ(60px); }
+
+        .hide-ui #info {
+            display: none !important;
+        }
     </style>
 </head>
 <body>
@@ -77,6 +236,7 @@
         <h1>🎬 4D Gaussian Splatting Viewer</h1>
         <p>Choose which file to load:</p>
         
+        <!-- Fixed: Use relative path, not HuggingFace URL -->
         <a href="?url=./data/splat-animation.splatv" class="button">
             🎯 Load Your File<br>
             <small><code>./data/splat-animation.splatv</code></small>
@@ -88,7 +248,8 @@
         </a>
         
         <p style="margin-top: 30px; font-size: 12px; opacity: 0.6;">
-            Make sure <code>hybrid.js</code> is in the same folder as this file
+            Make sure <code>hybrid.js</code> is in the same folder as this file<br>
+            <strong>Controls:</strong> Mouse = Look Around • WASD = Move • Scroll = Zoom
         </p>
     </div>
 
@@ -96,74 +257,70 @@
         // If there's a URL parameter, load the viewer
         const params = new URLSearchParams(window.location.search);
         if (params.get('url')) {
+            console.log('Loading:', params.get('url'));
+            
+            // Add viewer class to body for styling
+            document.body.className = 'viewer-active';
+            
             // Replace the current page content with the viewer
             document.body.innerHTML = `
                 <div id="info">
-                    <h3>🎬 4D Gaussian Splatting</h3>
-                    <p>Loading: ${params.get('url')}</p>
+                    <h3>🎬 4D Viewer</h3>
+                    <p id="fileStatus">Loading: ${params.get('url').split('/').pop()}</p>
                     <details>
-                        <summary>Instructions</summary>
-                        <div id="instructions" style="background: rgba(0, 0, 0, 0.6); white-space: pre-wrap; padding: 10px; border-radius: 10px; font-size: x-small;">
-Mouse: Orbit camera
-Scroll: Zoom
+                        <summary>Controls</summary>
+                        <div id="instructions">Mouse: Look around
 WASD: Move camera
-Numbers 0-9: Switch cameras
-P: Auto-play cameras
-+/-: Next/Previous camera
-                        </div>
+Scroll: Zoom
+Numbers: Switch cameras
+P: Auto-play
+H: Hide UI</div>
                     </details>
                 </div>
                 
-                <div id="progress" style="position: absolute; top: 0; height: 5px; background: blue; z-index: 99; transition: width 0.1s ease-in-out;"></div>
-                <div id="message" style="position: absolute; display: flex; top: 0; right: 0; left: 0; bottom: 0; z-index: 3; height: 100%; width: 100%; align-items: center; justify-content: center; font-weight: bold; font-size: large; color: red; pointer-events: none;"></div>
+                <div id="progress" style="width: 0%"></div>
+                <div id="message" style="display: none;"></div>
                 
-                <div class="scene" id="spinner" style="position: absolute; display: flex; top: 0; right: 0; left: 0; bottom: 0; z-index: 2; height: 100%; width: 100%; align-items: center; justify-content: center;">
-                    <div style="transform-style: preserve-3d;">
-                        <div style="transform-style: preserve-3d; transform: rotateX(45deg) rotateZ(45deg); animation: rotation 2s infinite;">
-                            <div style="transform-style: preserve-3d; height: 80px; width: 80px; position: relative; transform-origin: 0 0; transform: translateX(0) translateY(0) translateZ(-40px);">
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff;"></div>
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform: translateZ(80px);"></div>
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 0 50%; transform: rotateY(-90deg);"></div>
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 0 50%; transform: rotateY(-90deg) translateZ(-80px);"></div>
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px);"></div>
-                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px) translateZ(80px);"></div>
+                <div class="scene" id="spinner">
+                    <div class="cube-wrapper">
+                        <div class="cube">
+                            <div class="cube-faces">
+                                <div class="cube-face"></div>
+                                <div class="cube-face top"></div>
+                                <div class="cube-face front"></div>
+                                <div class="cube-face back"></div>
+                                <div class="cube-face right"></div>
+                                <div class="cube-face left"></div>
                             </div>
                         </div>
                     </div>
                 </div>
                 
-                <canvas id="canvas" style="display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none;"></canvas>
+                <canvas id="canvas"></canvas>
 
-                <div id="quality" style="position: absolute; bottom: 10px; z-index: 999; right: 10px;">
-                    <span id="fps"></span>
+                <div id="quality">
+                    <span id="fps">-- FPS</span>
                 </div>
                 
-                <div id="caminfo" style="position: absolute; top: 10px; z-index: 999; right: 10px;">
-                    <span id="camid"></span>
+                <div id="caminfo">
+                    <span id="camid">Loading...</span>
                 </div>
-                
-                <style>
-                    @keyframes rotation {
-                        0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
-                        50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
-                        100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
-                    }
-                </style>
             `;
             
-            // Add styles to body
-            document.body.style.overflow = 'hidden';
-            document.body.style.margin = '0';
-            document.body.style.background = 'black';
-            document.body.style.color = 'white';
-            document.body.style.fontFamily = 'sans-serif';
-            document.body.style.textShadow = '0 0 3px black';
+            // Improved camera controls - override hybrid.js behavior
+            let originalHybridLoaded = false;
             
-            // Now load hybrid.js
+            // Load hybrid.js
             const script = document.createElement('script');
             script.src = 'hybrid.js';
             script.onload = () => {
                 console.log('✅ hybrid.js loaded successfully');
+                originalHybridLoaded = true;
+                
+                // Wait a moment for hybrid.js to initialize, then override controls
+                setTimeout(() => {
+                    setupImprovedControls();
+                }, 1000);
             };
             script.onerror = () => {
                 document.getElementById('message').textContent = '❌ Error: hybrid.js not found. Make sure hybrid.js is in the same folder as index.html';
@@ -171,6 +328,124 @@ P: Auto-play cameras
                 document.getElementById('spinner').style.display = 'none';
             };
             document.head.appendChild(script);
+            
+            // Improved camera control system
+            function setupImprovedControls() {
+                console.log('🎮 Setting up improved camera controls');
+                
+                const canvas = document.getElementById('canvas');
+                if (!canvas) return;
+                
+                let isMouseDown = false;
+                let lastMouseX = 0;
+                let lastMouseY = 0;
+                
+                // Mouse look controls
+                canvas.addEventListener('mousedown', (e) => {
+                    isMouseDown = true;
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                    e.preventDefault();
+                });
+                
+                canvas.addEventListener('mousemove', (e) => {
+                    if (!isMouseDown) return;
+                    
+                    const deltaX = e.clientX - lastMouseX;
+                    const deltaY = e.clientY - lastMouseY;
+                    
+                    // Apply rotation to view matrix (if available globally)
+                    if (window.viewMatrix) {
+                        const rotSpeed = 0.005;
+                        
+                        // Horizontal rotation (around Y axis)
+                        const cosY = Math.cos(deltaX * rotSpeed);
+                        const sinY = Math.sin(deltaX * rotSpeed);
+                        
+                        // Vertical rotation (around X axis)  
+                        const cosX = Math.cos(deltaY * rotSpeed);
+                        const sinX = Math.sin(deltaY * rotSpeed);
+                        
+                        // Simple rotation application
+                        const temp = window.viewMatrix[0];
+                        window.viewMatrix[0] = temp * cosY - window.viewMatrix[2] * sinY;
+                        window.viewMatrix[2] = temp * sinY + window.viewMatrix[2] * cosY;
+                        
+                        window.carousel = false; // Stop auto-rotation
+                    }
+                    
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                    e.preventDefault();
+                });
+                
+                canvas.addEventListener('mouseup', () => {
+                    isMouseDown = false;
+                });
+                
+                canvas.addEventListener('mouseleave', () => {
+                    isMouseDown = false;
+                });
+                
+                // Enhanced keyboard controls
+                const activeKeys = new Set();
+                
+                document.addEventListener('keydown', (e) => {
+                    activeKeys.add(e.code);
+                    
+                    // Hide UI toggle
+                    if (e.code === 'KeyH') {
+                        document.body.classList.toggle('hide-ui');
+                        e.preventDefault();
+                    }
+                    
+                    // Stop auto-play on manual input
+                    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(e.code)) {
+                        if (window.carousel !== undefined) {
+                            window.carousel = false;
+                        }
+                        e.preventDefault();
+                    }
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    activeKeys.delete(e.code);
+                });
+                
+                // Camera movement loop
+                function updateCameraMovement() {
+                    if (window.viewMatrix) {
+                        const moveSpeed = 0.02;
+                        
+                        // WASD for translation (not rotation)
+                        if (activeKeys.has('KeyW')) {
+                            window.viewMatrix[14] -= moveSpeed; // Move forward
+                        }
+                        if (activeKeys.has('KeyS')) {
+                            window.viewMatrix[14] += moveSpeed; // Move backward  
+                        }
+                        if (activeKeys.has('KeyA')) {
+                            window.viewMatrix[12] -= moveSpeed; // Move left
+                        }
+                        if (activeKeys.has('KeyD')) {
+                            window.viewMatrix[12] += moveSpeed; // Move right
+                        }
+                        if (activeKeys.has('KeyQ')) {
+                            window.viewMatrix[13] -= moveSpeed; // Move down
+                        }
+                        if (activeKeys.has('KeyE')) {
+                            window.viewMatrix[13] += moveSpeed; // Move up
+                        }
+                    }
+                    
+                    requestAnimationFrame(updateCameraMovement);
+                }
+                
+                updateCameraMovement();
+                
+                // Update status
+                document.getElementById('fileStatus').textContent = 'Controls active - Mouse to look, WASD to move';
+            }
         }
     </script>
 </body>
