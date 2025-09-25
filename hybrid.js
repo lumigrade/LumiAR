@@ -17,13 +17,6 @@ let cameras = [
 
 let camera = cameras[0];
 
-// Global variables for timing control
-window.playbackSpeed = 1.0;
-window.setPlaybackSpeed = function(speed) {
-    window.playbackSpeed = speed;
-    console.log('Playback speed set to:', speed);
-};
-
 function createWorker(self) {
   let vertexCount = 0;
   let viewProj;
@@ -408,7 +401,12 @@ async function main() {
       })
     )
   );
-
+  // Speed control globals
+  window.playbackSpeed = 0.2; // Start at 20% speed
+  window.setPlaybackSpeed = function(speed) {
+      window.playbackSpeed = speed;
+      console.log('Playback speed set to:', speed);
+  };
   const canvas = document.getElementById("canvas");
   const fps = document.getElementById("fps");
   //   const camid = document.getElementById("camid");
@@ -895,11 +893,8 @@ async function main() {
     if (vertexCount > 0) {
       document.getElementById("spinner").style.display = "none";
       gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
-      // Custom timing for 16-second sequences  
-      const elapsed = Date.now() / 1000;
-      const animationDuration = 16;
-      const playbackSpeed = window.playbackSpeed || 1.0;
-      const normalizedTime = ((elapsed * playbackSpeed) % animationDuration) / animationDuration;
+      const elapsed = (Date.now() - startTime) / 1000;
+      const normalizedTime = (elapsed * speed) % 16.0 / 16.0; // Linear 0-1 over 16 seconds
       gl.uniform1f(u_time, normalizedTime);
 
       gl.clear(gl.COLOR_BUFFER_BIT);

@@ -330,10 +330,8 @@ async function initXR() {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Custom timing for 16-second sequences  
-    const elapsed = Date.now() / 1000;
-    const animationDuration = 16;
-    const playbackSpeed = window.playbackSpeed || 1.0;
-    const normalizedTime = ((elapsed * playbackSpeed) % animationDuration) / animationDuration;
+    const elapsed = (Date.now() - startTime) / 1000;
+    const normalizedTime = (elapsed * speed) % 16.0 / 16.0; // Linear 0-1 over 16 seconds
     gl.uniform1f(u_time, normalizedTime);
 
     for (let view of pose.views) {
