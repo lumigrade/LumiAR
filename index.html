@@ -301,9 +301,9 @@
                     class="speed-slider" 
                     min="10" 
                     max="100" 
-                    value="100"
+                    value="20"
                 />
-                <span class="speed-label" id="speedValue">100%</span>
+                <span class="speed-label" id="speedValue">20%</span>
             </div>
         </div>
         
@@ -376,10 +376,31 @@
             const speed = parseInt(this.value);
             speedValue.textContent = speed + '%';
             
-            // Apply speed to hybrid.js if it's loaded
+            // Try multiple ways to set playback speed
+            const speedMultiplier = speed / 100;
+            
+            // Method 1: Try window.setPlaybackSpeed
             if (window.setPlaybackSpeed) {
-                window.setPlaybackSpeed(speed / 100);
-                updateStatus('Playback speed: ' + speed + '%', '');
+                window.setPlaybackSpeed(speedMultiplier);
+                updateStatus('Playback speed: ' + speed + '% (setPlaybackSpeed)', '');
+            }
+            // Method 2: Try direct frame timing control
+            else if (window.frameTime || window.animationSpeed) {
+                if (window.frameTime) window.frameTime = (1000 / 25) / speedMultiplier; // 25 FPS base
+                if (window.animationSpeed) window.animationSpeed = speedMultiplier;
+                updateStatus('Playback speed: ' + speed + '% (frameTime)', '');
+            }
+            // Method 3: Try renderer time scale
+            else if (window.renderer && window.renderer.setTimeScale) {
+                window.renderer.setTimeScale(speedMultiplier);
+                updateStatus('Playback speed: ' + speed + '% (renderer)', '');
+            }
+            // Method 4: Set global speed variable for hybrid.js to use
+            else {
+                window.playbackSpeed = speedMultiplier;
+                window.targetFrameTime = (1000 / 25) / speedMultiplier; // Target: 40ms per frame at 100%
+                updateStatus('Playback speed: ' + speed + '% (global variable)', '');
+                console.log('Set playback speed to', speedMultiplier, 'target frame time:', window.targetFrameTime + 'ms');
             }
         });
 
