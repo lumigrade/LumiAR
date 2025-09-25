@@ -1,594 +1,177 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
-    <title>Desktop 4D Gaussian Splatting Viewer</title>
+    <title>4D Gaussian Splatting Viewer</title>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <style>
         body {
             overflow: hidden;
             margin: 0;
             height: 100vh;
             width: 100vw;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #000;
+            font-family: sans-serif;
+            background: black;
+            text-shadow: 0 0 3px black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        
+        a, body {
             color: white;
         }
-
-        #info {
-            position: absolute;
-            top: 10px;
-            left: 15px;
-            z-index: 100;
+        
+        .container {
+            text-align: center;
             background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: 15px;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-
-        h3 {
-            margin: 0 0 10px 0;
-            font-size: 18px;
-            color: #4ecdc4;
+        
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2em;
         }
-
+        
         p {
-            margin: 5px 0;
-            font-size: 13px;
-            opacity: 0.9;
+            margin: 10px 0;
+            opacity: 0.8;
         }
-
-        .controls {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            z-index: 100;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .control-btn {
-            padding: 12px 20px;
+        
+        .button {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 10px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
-            border-radius: 25px;
             color: white;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            text-decoration: none;
+            border-radius: 25px;
+            font-weight: bold;
+            transition: transform 0.3s ease;
         }
-
-        .control-btn:hover {
+        
+        .button:hover {
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-
-        .control-btn:disabled {
-            background: rgba(255, 255, 255, 0.1);
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .test-btn {
-            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
-        }
-
+        
         .example-btn {
             background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
         }
-
-        #canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            cursor: grab;
-        }
-
-        #canvas:active {
-            cursor: grabbing;
-        }
-
-        /* Loading Spinner */
-        .scene {
-            position: absolute;
-            display: flex;
-            top: 0;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 2;
-            height: 100%;
-            width: 100%;
-            align-items: center;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.9);
-        }
-
-        .cube-wrapper {
-            transform-style: preserve-3d;
-        }
-
-        .cube {
-            transform-style: preserve-3d;
-            transform: rotateX(45deg) rotateZ(45deg);
-            animation: rotation 2s infinite;
-        }
-
-        .cube-faces {
-            transform-style: preserve-3d;
-            height: 80px;
-            width: 80px;
-            position: relative;
-            transform-origin: 0 0;
-            transform: translateX(0) translateY(0) translateZ(-40px);
-        }
-
-        .cube-face {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
-            border: solid 1px rgba(255, 255, 255, 0.3);
+        
+        code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
             border-radius: 4px;
-        }
-
-        .cube-face.top { transform: translateZ(80px); }
-        .cube-face.front { transform-origin: 0 50%; transform: rotateY(-90deg); }
-        .cube-face.back { transform-origin: 0 50%; transform: rotateY(-90deg) translateZ(-80px); }
-        .cube-face.right { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px); }
-        .cube-face.left { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px) translateZ(80px); }
-
-        @keyframes rotation {
-            0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
-            50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
-            100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
-        }
-
-        #progress {
-            position: absolute;
-            top: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
-            z-index: 99;
-            transition: width 0.3s ease-out;
-            border-radius: 0 2px 2px 0;
-        }
-
-        #message {
-            position: absolute;
-            display: flex;
-            top: 0;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 3;
-            height: 100%;
-            width: 100%;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
-            color: #ff6b6b;
-            pointer-events: none;
-            background: rgba(0, 0, 0, 0.95);
-        }
-
-        #quality, #caminfo {
-            position: absolute;
-            z-index: 999;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 8px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            backdrop-filter: blur(10px);
-        }
-
-        #quality {
-            top: 20px;
-            right: 20px;
-        }
-
-        #caminfo {
-            top: 60px;
-            right: 20px;
-        }
-
-        .debug {
-            position: absolute;
-            top: 100px;
-            right: 20px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 5px;
             font-family: 'Courier New', monospace;
-            font-size: 11px;
-            max-width: 300px;
-            max-height: 200px;
-            overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .instructions {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            text-align: center;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 30px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 10;
-        }
-
-        .instructions h2 {
-            color: #4ecdc4;
-            margin-bottom: 20px;
-        }
-
-        .instructions ol {
-            text-align: left;
-            padding-left: 20px;
-        }
-
-        .instructions li {
-            margin: 10px 0;
-            line-height: 1.5;
-        }
-
-        .close-btn {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            background: none;
-            border: none;
-            color: white;
-            font-size: 20px;
-            cursor: pointer;
-            opacity: 0.7;
-        }
-
-        .close-btn:hover {
-            opacity: 1;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        <h3>🖥️ Desktop 4D Gaussian Splatting</h3>
-        <p><strong>Testing Interface</strong></p>
-        <p>📁 File: <span id="currentFile">None loaded</span></p>
-        <p>📊 Status: <span id="status">Ready to load</span></p>
-        <p>🎬 Animation: <span id="animStatus">Stopped</span></p>
-    </div>
-
-    <div class="instructions" id="instructions">
-        <button class="close-btn" onclick="hideInstructions()">×</button>
-        <h2>🎬 4D Animation Testing</h2>
-        <ol>
-            <li><strong>Convert your PLY sequence:</strong><br>
-                <code>node splat2splatv.js ./data output.splatv</code>
-            </li>
-            <li><strong>Upload to your data folder:</strong><br>
-                Place the .splatv file in <code>./data/</code>
-            </li>
-            <li><strong>Update file paths:</strong><br>
-                Edit the URLs in the buttons below
-            </li>
-            <li><strong>Test loading:</strong><br>
-                Click "Test Your File" or "Working Example"
-            </li>
-            <li><strong>Controls:</strong><br>
-                Mouse: Orbit • Scroll: Zoom • WASD: Move
-            </li>
-        </ol>
-        <p><em>This is for testing before AR deployment</em></p>
-    </div>
-
-    <div id="progress" style="width: 0%"></div>
-    <div id="message" style="display: none;"></div>
-
-    <div class="scene" id="spinner" style="display: none;">
-        <div class="cube-wrapper">
-            <div class="cube">
-                <div class="cube-faces">
-                    <div class="cube-face bottom"></div>
-                    <div class="cube-face top"></div>
-                    <div class="cube-face left"></div>
-                    <div class="cube-face right"></div>
-                    <div class="cube-face back"></div>
-                    <div class="cube-face front"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <canvas id="canvas"></canvas>
-
-    <div id="quality">
-        <span id="fps">-- FPS</span>
-    </div>
-    
-    <div id="caminfo">
-        <span id="camid">Desktop View</span>
-    </div>
-
-    <div class="debug" id="debug">
-        <strong>Debug Log:</strong><br>
-        System ready for testing...<br>
-    </div>
-
-    <div class="controls">
-        <button class="control-btn test-btn" onclick="loadTestFile()" id="testBtn">
-            🎯 Test Your File
-        </button>
-        <button class="control-btn example-btn" onclick="loadExample()" id="exampleBtn">
-            ✅ Working Example
-        </button>
-        <button class="control-btn" onclick="togglePlayback()" id="playBtn" disabled>
-            ▶️ Play Animation
-        </button>
-        <button class="control-btn" onclick="resetView()" id="resetBtn" disabled>
-            🔄 Reset View
-        </button>
+    <div class="container">
+        <h1>🎬 4D Gaussian Splatting Viewer</h1>
+        <p>Choose which file to load:</p>
+        
+        <a href="?url=./data/splat-animation.splatv" class="button">
+            🎯 Load Your File<br>
+            <small><code>./data/splat-animation.splatv</code></small>
+        </a>
+        
+        <a href="?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv" class="button example-btn">
+            ✅ Load Working Example<br>
+            <small><code>flame.splatv</code></small>
+        </a>
+        
+        <p style="margin-top: 30px; font-size: 12px; opacity: 0.6;">
+            Make sure <code>hybrid.js</code> is in the same folder as this file
+        </p>
     </div>
 
     <script>
-        // Configuration - UPDATE THESE PATHS TO YOUR FILES
-        const TEST_FILE_URL = './data/splat-animation.splatv'; // Your converted file
-        const EXAMPLE_URL = 'https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv'; // Working example
-        
-        // Global state
-        let currentSplatv = null;
-        let isPlaying = false;
-        let animationLoaded = false;
-
-        // DOM elements
-        const currentFile = document.getElementById('currentFile');
-        const status = document.getElementById('status');
-        const animStatus = document.getElementById('animStatus');
-        const spinner = document.getElementById('spinner');
-        const progress = document.getElementById('progress');
-        const message = document.getElementById('message');
-        const debug = document.getElementById('debug');
-        const fps = document.getElementById('fps');
-        const camid = document.getElementById('camid');
-        
-        const testBtn = document.getElementById('testBtn');
-        const exampleBtn = document.getElementById('exampleBtn');
-        const playBtn = document.getElementById('playBtn');
-        const resetBtn = document.getElementById('resetBtn');
-
-        // Debug logging
-        function debugLog(message) {
-            const timestamp = new Date().toLocaleTimeString();
-            console.log(`[${timestamp}] ${message}`);
-            debug.innerHTML += `<br>[${timestamp}] ${message}`;
-            debug.scrollTop = debug.scrollHeight;
-        }
-
-        function updateStatus(statusText, type = 'info') {
-            status.textContent = statusText;
-            status.style.color = type === 'error' ? '#ff6b6b' : type === 'success' ? '#4ecdc4' : 'white';
-            debugLog(`STATUS: ${statusText}`);
-        }
-
-        function updateProgress(percent) {
-            progress.style.width = `${percent}%`;
-            if (percent >= 100) {
-                setTimeout(() => {
-                    progress.style.width = '0%';
-                }, 2000);
-            }
-        }
-
-        function showMessage(text, duration = 3000) {
-            message.textContent = text;
-            message.style.display = 'flex';
-            setTimeout(() => {
-                message.style.display = 'none';
-            }, duration);
-        }
-
-        function hideInstructions() {
-            document.getElementById('instructions').style.display = 'none';
-        }
-
-        // Load test file (your converted .splatv)
-        async function loadTestFile() {
-            debugLog('Loading test file: ' + TEST_FILE_URL);
-            currentFile.textContent = 'splat-animation.splatv';
-            await loadSplatvFile(TEST_FILE_URL, 'Your Test File');
-        }
-
-        // Load working example
-        async function loadExample() {
-            debugLog('Loading working example: flame.splatv');
-            currentFile.textContent = 'flame.splatv (example)';
-            await loadSplatvFile(EXAMPLE_URL, 'Working Example');
-        }
-
-        // Generic .splatv loader
-        async function loadSplatvFile(url, name) {
-            try {
-                updateStatus('Loading...', 'info');
-                spinner.style.display = 'flex';
+        // If there's a URL parameter, load the viewer
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('url')) {
+            // Replace the current page content with the viewer
+            document.body.innerHTML = `
+                <div id="info">
+                    <h3>🎬 4D Gaussian Splatting</h3>
+                    <p>Loading: ${params.get('url')}</p>
+                    <details>
+                        <summary>Instructions</summary>
+                        <div id="instructions" style="background: rgba(0, 0, 0, 0.6); white-space: pre-wrap; padding: 10px; border-radius: 10px; font-size: x-small;">
+Mouse: Orbit camera
+Scroll: Zoom
+WASD: Move camera
+Numbers 0-9: Switch cameras
+P: Auto-play cameras
++/-: Next/Previous camera
+                        </div>
+                    </details>
+                </div>
                 
-                testBtn.disabled = true;
-                exampleBtn.disabled = true;
-                playBtn.disabled = true;
-                resetBtn.disabled = true;
+                <div id="progress" style="position: absolute; top: 0; height: 5px; background: blue; z-index: 99; transition: width 0.1s ease-in-out;"></div>
+                <div id="message" style="position: absolute; display: flex; top: 0; right: 0; left: 0; bottom: 0; z-index: 3; height: 100%; width: 100%; align-items: center; justify-content: center; font-weight: bold; font-size: large; color: red; pointer-events: none;"></div>
+                
+                <div class="scene" id="spinner" style="position: absolute; display: flex; top: 0; right: 0; left: 0; bottom: 0; z-index: 2; height: 100%; width: 100%; align-items: center; justify-content: center;">
+                    <div style="transform-style: preserve-3d;">
+                        <div style="transform-style: preserve-3d; transform: rotateX(45deg) rotateZ(45deg); animation: rotation 2s infinite;">
+                            <div style="transform-style: preserve-3d; height: 80px; width: 80px; position: relative; transform-origin: 0 0; transform: translateX(0) translateY(0) translateZ(-40px);">
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff;"></div>
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform: translateZ(80px);"></div>
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 0 50%; transform: rotateY(-90deg);"></div>
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 0 50%; transform: rotateY(-90deg) translateZ(-80px);"></div>
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px);"></div>
+                                <div style="position: absolute; inset: 0; background: #0017ff; border: solid 1px #ffffff; transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-80px) translateZ(80px);"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <canvas id="canvas" style="display: block; position: absolute; top: 0; left: 0; width: 100%; height: 100%; touch-action: none;"></canvas>
 
-                debugLog(`Starting load: ${name} from ${url}`);
-
-                // Simulate progress for now
-                let progress = 0;
-                const progressInterval = setInterval(() => {
-                    progress += Math.random() * 10 + 5;
-                    if (progress > 95) progress = 95;
-                    updateProgress(progress);
-                    updateStatus(`Loading ${name}: ${Math.round(progress)}%`);
-                }, 300);
-
-                // Check if file exists
-                try {
-                    const response = await fetch(url, { method: 'HEAD' });
-                    if (!response.ok) {
-                        throw new Error(`File not found: ${response.status}`);
+                <div id="quality" style="position: absolute; bottom: 10px; z-index: 999; right: 10px;">
+                    <span id="fps"></span>
+                </div>
+                
+                <div id="caminfo" style="position: absolute; top: 10px; z-index: 999; right: 10px;">
+                    <span id="camid"></span>
+                </div>
+                
+                <style>
+                    @keyframes rotation {
+                        0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
+                        50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
+                        100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
                     }
-                    
-                    const fileSize = response.headers.get('content-length');
-                    if (fileSize) {
-                        debugLog(`File size: ${(parseInt(fileSize) / 1024 / 1024).toFixed(2)} MB`);
-                    }
-                } catch (fetchError) {
-                    clearInterval(progressInterval);
-                    throw new Error(`Cannot access file: ${fetchError.message}`);
-                }
-
-                // Simulate actual loading (replace with real hybrid.js loading)
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                clearInterval(progressInterval);
-                updateProgress(100);
-                
-                currentSplatv = { name, url }; // Mock object
-                animationLoaded = true;
-                
-                updateStatus('Loaded successfully!', 'success');
-                showMessage(`✅ ${name} loaded successfully!\nReady for desktop testing`, 2000);
-                
-                // Enable controls
-                testBtn.disabled = false;
-                exampleBtn.disabled = false;
-                playBtn.disabled = false;
-                resetBtn.disabled = false;
-                
-                camid.textContent = 'Ready for AR';
-                animStatus.textContent = 'Ready';
-                
-                debugLog(`Successfully loaded: ${name}`);
-                debugLog('File ready for AR deployment');
-                
-                spinner.style.display = 'none';
-                
-            } catch (error) {
-                debugLog(`Loading failed: ${error.message}`);
-                updateStatus(`Failed: ${error.message}`, 'error');
-                showMessage(`❌ Loading failed: ${error.message}`, 4000);
-                
-                if (error.message.includes('File not found')) {
-                    debugLog('SOLUTION: Make sure your .splatv file is uploaded to the data folder');
-                    debugLog('Run: node splat2splatv.js ./data output.splatv');
-                }
-                
-                // Re-enable buttons
-                testBtn.disabled = false;
-                exampleBtn.disabled = false;
-                spinner.style.display = 'none';
-            }
+                </style>
+            `;
+            
+            // Add styles to body
+            document.body.style.overflow = 'hidden';
+            document.body.style.margin = '0';
+            document.body.style.background = 'black';
+            document.body.style.color = 'white';
+            document.body.style.fontFamily = 'sans-serif';
+            document.body.style.textShadow = '0 0 3px black';
+            
+            // Now load hybrid.js
+            const script = document.createElement('script');
+            script.src = 'hybrid.js';
+            script.onload = () => {
+                console.log('✅ hybrid.js loaded successfully');
+            };
+            script.onerror = () => {
+                document.getElementById('message').textContent = '❌ Error: hybrid.js not found. Make sure hybrid.js is in the same folder as index.html';
+                document.getElementById('message').style.display = 'flex';
+                document.getElementById('spinner').style.display = 'none';
+            };
+            document.head.appendChild(script);
         }
-
-        // Toggle animation playback
-        function togglePlayback() {
-            if (!currentSplatv) {
-                showMessage('❌ Load a file first!');
-                return;
-            }
-            
-            isPlaying = !isPlaying;
-            playBtn.textContent = isPlaying ? '⏸️ Pause' : '▶️ Play';
-            animStatus.textContent = isPlaying ? 'Playing' : 'Paused';
-            
-            debugLog(`Animation ${isPlaying ? 'started' : 'paused'}`);
-            
-            if (isPlaying) {
-                showMessage('▶️ Animation playing');
-            } else {
-                showMessage('⏸️ Animation paused');
-            }
-        }
-
-        // Reset camera view
-        function resetView() {
-            debugLog('Resetting camera view');
-            camid.textContent = 'View Reset';
-            showMessage('🔄 Camera view reset');
-            
-            // Reset would be handled by hybrid.js/controls
-            setTimeout(() => {
-                camid.textContent = animationLoaded ? 'Ready for AR' : 'Desktop View';
-            }, 1000);
-        }
-
-        // FPS counter simulation
-        let frameCount = 45;
-        setInterval(() => {
-            frameCount += Math.floor(Math.random() * 10) - 5;
-            if (frameCount < 30) frameCount = 30;
-            if (frameCount > 60) frameCount = 60;
-            fps.textContent = `${frameCount} FPS`;
-        }, 1000);
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            switch(e.key.toLowerCase()) {
-                case ' ':
-                    e.preventDefault();
-                    if (currentSplatv) togglePlayback();
-                    break;
-                case 'r':
-                    if (currentSplatv) resetView();
-                    break;
-                case '1':
-                    loadTestFile();
-                    break;
-                case '2':
-                    loadExample();
-                    break;
-                case 'escape':
-                    hideInstructions();
-                    break;
-            }
-        });
-
-        // Mouse controls info
-        document.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-            showMessage('Controls: Mouse to orbit • Scroll to zoom • WASD to move');
-        });
-
-        // Initialize
-        debugLog('Desktop 4D Gaussian Splatting Viewer initialized');
-        debugLog('Ready for .splatv file testing');
-        debugLog('Keyboard shortcuts: Space=Play/Pause, R=Reset, 1=Test File, 2=Example');
-        
-        // Load hybrid.js when available
-        const hybridScript = document.createElement('script');
-        hybridScript.src = 'hybrid.js';
-        hybridScript.onload = () => {
-            debugLog('✅ hybrid.js loaded - full functionality enabled');
-            updateStatus('Full desktop viewer ready', 'success');
-        };
-        hybridScript.onerror = () => {
-            debugLog('ℹ️ hybrid.js not found - upload for full functionality');
-            updateStatus('Upload hybrid.js for full features', 'info');
-        };
-        document.head.appendChild(hybridScript);
-
-        // Auto-hide instructions after 10 seconds
-        setTimeout(() => {
-            if (document.getElementById('instructions').style.display !== 'none') {
-                hideInstructions();
-            }
-        }, 10000);
     </script>
 </body>
 </html>
