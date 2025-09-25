@@ -351,6 +351,56 @@
             console.log('STATUS [' + type + ']:', message);
         }
 
+        // Initialize speed control on load and override hybrid.js timing
+        window.addEventListener('load', function() {
+            // Set initial speed to 20% to slow down the animation
+            const initialSpeed = 20;
+            document.getElementById('speedSlider').value = initialSpeed;
+            document.getElementById('speedValue').textContent = initialSpeed + '%';
+            
+            // Apply initial speed settings
+            const speedMultiplier = initialSpeed / 100;
+            window.playbackSpeed = speedMultiplier;
+            window.targetFrameTime = (1000 / 25) / speedMultiplier; // 40ms per frame at 100%, 200ms at 20%
+            
+            updateStatus('Playback speed initialized to ' + initialSpeed + '% for proper 25 FPS timing', '');
+            console.log('Initial speed set:', speedMultiplier, 'target frame time:', window.targetFrameTime + 'ms');
+
+            // Override hybrid.js timing function after a short delay
+            setTimeout(function() {
+                if (window.gl && window.u_time) {
+                    console.log('Overriding hybrid.js timing...');
+                    
+                    // Store original animation start time
+                    window.animationStart = Date.now();
+                    window.animationDuration = 16; // Your sequence duration in seconds
+                    
+                    // Monkey patch the frame function to use custom timing
+                    const originalFrame = window.frame;
+                    if (originalFrame) {
+                        window.frame = function() {
+                            // Calculate custom time based on your 16-second sequence
+                            const elapsed = (Date.now() - window.animationStart) / 1000;
+                            const speed = window.playbackSpeed || 0.2;
+                            const scaledTime = (elapsed * speed) % window.animationDuration;
+                            const normalizedTime = scaledTime / window.animationDuration; // 0 to 1
+                            
+                            // Set custom time uniform
+                            if (window.gl && window.u_time && window.vertexCount > 0) {
+                                window.gl.uniform1f(window.u_time, normalizedTime);
+                            }
+                            
+                            // Call original frame function
+                            originalFrame.call(this);
+                        };
+                        
+                        console.log('✅ Timing override installed! Your 16s sequence should now play properly.');
+                        updateStatus('✅ Custom timing active - 16 second sequence', 'success');
+                    }
+                }
+            }, 2000);
+        });
+
         // Load custom URL function
         function loadCustomUrl() {
             const url = document.getElementById('customUrl').value.trim();
