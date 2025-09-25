@@ -140,11 +140,11 @@
     <div class="file-selector" id="fileSelector">
         <h2>🎬 4D Gaussian Splatting Viewer</h2>
         <p>Choose a .splatv file to load:</p>
-        <button class="file-btn" onclick="loadYourFile()">
+        <button class="file-btn" id="loadYourBtn">
             🎯 Load Your Model<br>
             <small>model.splatv from GitHub</small>
         </button>
-        <button class="file-btn example" onclick="loadExample()">
+        <button class="file-btn example" id="loadExampleBtn">
             ✅ Load Working Example<br>
             <small>flame.splatv (HuggingFace)</small>
         </button>
@@ -270,13 +270,13 @@
         }
 
         // Button handlers
-        window.loadYourFile = function() {
+        document.getElementById('loadYourBtn').addEventListener('click', function() {
             loadFromUrl('https://github.com/lumigrade/LumiAR/raw/main/data/model.splatv', 'Your model.splatv');
-        };
+        });
 
-        window.loadExample = function() {
+        document.getElementById('loadExampleBtn').addEventListener('click', function() {
             loadFromUrl('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv', 'Flame example');
-        };
+        });
 
         // Drag & Drop support
         document.addEventListener('dragover', (e) => {
