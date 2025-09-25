@@ -17,6 +17,13 @@ let cameras = [
 
 let camera = cameras[0];
 
+// Global variables for timing control
+window.playbackSpeed = 1.0;
+window.setPlaybackSpeed = function(speed) {
+    window.playbackSpeed = speed;
+    console.log('Playback speed set to:', speed);
+};
+
 function createWorker(self) {
   let vertexCount = 0;
   let viewProj;
@@ -888,7 +895,12 @@ async function main() {
     if (vertexCount > 0) {
       document.getElementById("spinner").style.display = "none";
       gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
-      gl.uniform1f(u_time, Math.sin(Date.now() / 1000) / 2 + 1 / 2);
+      // Custom timing for 16-second sequences  
+      const elapsed = Date.now() / 1000;
+      const animationDuration = 16;
+      const playbackSpeed = window.playbackSpeed || 1.0;
+      const normalizedTime = ((elapsed * playbackSpeed) % animationDuration) / animationDuration;
+      gl.uniform1f(u_time, normalizedTime);
 
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArraysInstanced(gl.TRIANGLE_FAN, 0, 4, vertexCount);
