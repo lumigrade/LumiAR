@@ -30,7 +30,7 @@
             padding: 15px;
             border-radius: 8px;
             backdrop-filter: blur(10px);
-            max-width: 300px;
+            max-width: 350px;
         }
         
         h3 {
@@ -42,6 +42,76 @@
             margin: 5px 0;
             font-size: 12px;
             opacity: 0.9;
+        }
+
+        .url-input-section {
+            margin: 10px 0 15px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .url-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+        }
+
+        .url-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: rgba(102, 126, 234, 0.8);
+            box-shadow: 0 0 5px rgba(102, 126, 234, 0.3);
+        }
+
+        .speed-control {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .speed-slider {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            height: 4px;
+            border-radius: 2px;
+            outline: none;
+            appearance: none;
+        }
+
+        .speed-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+        }
+
+        .speed-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: pointer;
+            border: none;
+        }
+
+        .speed-label {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.8);
+            min-width: 40px;
         }
 
         .file-buttons {
@@ -69,6 +139,10 @@
 
         .file-btn.example {
             background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+
+        .file-btn.load {
+            background: linear-gradient(135deg, #ff9d0d 0%, #ff6b35 100%);
         }
 
         .cube-wrapper {
@@ -208,6 +282,31 @@
     <div id="info">
         <h3>🎬 4D Gaussian Splatting</h3>
         <p><strong>Controls:</strong> Mouse = Look • Scroll = Zoom • Arrow Keys = Move</p>
+        
+        <div class="url-input-section">
+            <input 
+                type="text" 
+                id="customUrl" 
+                class="url-input" 
+                placeholder="Enter your .splatv URL here..."
+                value="https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/grok.splatv"
+            />
+            <button id="loadCustomBtn" class="file-btn load">🎯 Load Custom URL</button>
+            
+            <div class="speed-control">
+                <span class="speed-label">Speed:</span>
+                <input 
+                    type="range" 
+                    id="speedSlider" 
+                    class="speed-slider" 
+                    min="10" 
+                    max="100" 
+                    value="100"
+                />
+                <span class="speed-label" id="speedValue">100%</span>
+            </div>
+        </div>
+        
         <div class="file-buttons">
             <a href="?url=https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/model-fixed.splatv" class="file-btn">🎯 Your Model</a>
             <a href="?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv" class="file-btn example">✅ Example</a>
@@ -251,6 +350,48 @@
             statusEl.className = type;
             console.log('STATUS [' + type + ']:', message);
         }
+
+        // Load custom URL function
+        function loadCustomUrl() {
+            const url = document.getElementById('customUrl').value.trim();
+            if (!url) {
+                updateStatus('Please enter a URL', 'error');
+                return;
+            }
+            
+            if (!url.toLowerCase().endsWith('.splatv')) {
+                updateStatus('URL must end with .splatv', 'error');
+                return;
+            }
+            
+            updateStatus('Loading custom URL...', 'loading');
+            window.location.href = '?url=' + encodeURIComponent(url);
+        }
+
+        // Speed control
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        
+        speedSlider.addEventListener('input', function() {
+            const speed = parseInt(this.value);
+            speedValue.textContent = speed + '%';
+            
+            // Apply speed to hybrid.js if it's loaded
+            if (window.setPlaybackSpeed) {
+                window.setPlaybackSpeed(speed / 100);
+                updateStatus('Playback speed: ' + speed + '%', '');
+            }
+        });
+
+        // Load custom button event
+        document.getElementById('loadCustomBtn').addEventListener('click', loadCustomUrl);
+        
+        // Enter key support for URL input
+        document.getElementById('customUrl').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                loadCustomUrl();
+            }
+        });
 
         // Check what's loading
         const params = new URLSearchParams(window.location.search);
