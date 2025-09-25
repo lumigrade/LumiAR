@@ -141,8 +141,8 @@
         <h2>🎬 4D Gaussian Splatting Viewer</h2>
         <p>Choose a .splatv file to load:</p>
         <button class="file-btn" onclick="loadYourFile()">
-            🎯 Load Your File<br>
-            <small>./data/splat-animation.splatv</small>
+            🎯 Load Your Model<br>
+            <small>model.splatv from GitHub</small>
         </button>
         <button class="file-btn example" onclick="loadExample()">
             ✅ Load Working Example<br>
@@ -271,7 +271,7 @@
 
         // Button handlers
         window.loadYourFile = function() {
-            loadFromUrl('./data/splat-animation.splatv', 'Your .splatv file');
+            loadFromUrl('https://github.com/lumigrade/LumiAR/raw/main/data/model.splatv', 'Your model.splatv');
         };
 
         window.loadExample = function() {
@@ -330,8 +330,10 @@
             
             if (url) {
                 console.log('Auto-loading from URL parameter:', url);
-                if (url.includes('flame')) {
+                if (url.includes('flame') || url.includes('huggingface')) {
                     loadExample();
+                } else if (url.includes('github.com/lumigrade') || url.includes('model.splatv')) {
+                    loadYourFile();
                 } else {
                     loadFromUrl(url, url.split('/').pop());
                 }
