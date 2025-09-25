@@ -1,350 +1,336 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>4D Gaussian Splatting Viewer</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <style>
-        body,
-        html {
-            margin: 0;
-            padding: 0;
+        body {
             overflow: hidden;
-            background-color: #000;
-            font-family: sans-serif;
-        }
-
-        canvas {
-            width: 100vw;
+            margin: 0;
             height: 100vh;
+            width: 100vw;
+            font-family: sans-serif;
+            background: black;
+            text-shadow: 0 0 3px black;
         }
-
-        dialog {
-            width: 100%;
-            text-align: center;
-            max-width: 20em;
+        
+        a, body {
             color: white;
-            background-color: #000;
-            border: 1px solid #333;
+        }
+        
+        #info {
+            z-index: 100;
+            position: absolute;
+            top: 10px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
             border-radius: 8px;
-            position: relative;
-            transform: translate(-50%, -50%);
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+        
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 18px;
+        }
+        
+        p {
+            margin: 5px 0;
+            font-size: 12px;
+            opacity: 0.9;
         }
 
-        #progress-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-        }
-
-        progress {
-            width: 100%;
-            height: 1em;
-            border: none;
-            background-color: #333;
-            color: #eee;
-            border-radius: 4px;
-        }
-
-        progress::-webkit-progress-bar {
-            background-color: #333;
-            border-radius: 4px;
-        }
-
-        progress::-webkit-progress-value {
-            background-color: #667eea;
-            border-radius: 4px;
-        }
-
-        progress::-moz-progress-bar {
-            background-color: #667eea;
-            border-radius: 4px;
-        }
-
-        .file-selector {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 1000;
-            background: rgba(0, 0, 0, 0.95);
-            padding: 30px;
-            border-radius: 15px;
-            text-align: center;
-            border: 1px solid #333;
-            color: white;
+        .file-buttons {
+            margin: 10px 0;
         }
 
         .file-btn {
-            display: block;
-            width: 100%;
-            padding: 15px 25px;
-            margin: 10px 0;
+            display: inline-block;
+            padding: 8px 15px;
+            margin: 5px 5px 5px 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             text-decoration: none;
             border: none;
-            border-radius: 25px;
+            border-radius: 20px;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.3s ease;
-            font-size: 14px;
+            font-size: 12px;
+            transition: transform 0.2s ease;
         }
 
         .file-btn:hover {
-            transform: translateY(-2px);
+            transform: translateY(-1px);
         }
 
         .file-btn.example {
             background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
         }
 
-        .controls-info {
+        .cube-wrapper {
+            transform-style: preserve-3d;
+        }
+
+        .cube {
+            transform-style: preserve-3d;
+            transform: rotateX(45deg) rotateZ(45deg);
+            animation: rotation 2s infinite;
+        }
+
+        .cube-faces {
+            transform-style: preserve-3d;
+            height: 60px;
+            width: 60px;
+            position: relative;
+            transform-origin: 0 0;
+            transform: translateX(0) translateY(0) translateZ(-30px);
+        }
+
+        .cube-face {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            inset: 0;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: solid 1px rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        
+        .cube-face.top { transform: translateZ(60px); }
+        .cube-face.front { transform-origin: 0 50%; transform: rotateY(-90deg); }
+        .cube-face.back { transform-origin: 0 50%; transform: rotateY(-90deg) translateZ(-60px); }
+        .cube-face.right { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px); }
+        .cube-face.left { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px) translateZ(60px); }
+
+        @keyframes rotation {
+            0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
+            50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
+            100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
+        }
+
+        .scene, #message {
+            position: absolute;
+            display: flex;
+            top: 0;
+            right: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 2;
+            height: 100%;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #message {
+            font-weight: bold;
+            font-size: 18px;
+            color: #ff6b6b;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+        }
+
+        #progress {
+            position: absolute;
+            top: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            z-index: 99;
+            transition: width 0.3s ease-in-out;
+        }
+
+        #quality, #caminfo {
+            position: absolute;
+            z-index: 999;
             background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 8px;
-            color: white;
+            padding: 6px 10px;
+            border-radius: 15px;
             font-size: 12px;
-            max-width: 200px;
-            z-index: 100;
+            backdrop-filter: blur(10px);
         }
 
-        .hidden {
-            display: none !important;
+        #quality { bottom: 15px; right: 15px; }
+        #caminfo { top: 15px; right: 15px; }
+        
+        #canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            cursor: grab;
         }
 
-        .drop-zone {
+        #canvas:active { cursor: grabbing; }
+
+        body.nohf .nohf {
+            display: none;
+        }
+        
+        body.nohf #progress,
+        body.nohf .cube-face {
+            background: #ff9d0d;
+        }
+
+        #enter {
             position: absolute;
             top: 0;
             left: 0;
             right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 24px;
-            font-weight: bold;
-            z-index: 999;
-            border: 3px dashed #667eea;
-            margin: 20px;
-            border-radius: 10px;
+            z-index: 10000;
+            padding: 10px;
+            display: none;
+        }
+
+        #status {
+            background: rgba(0, 100, 0, 0.8);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-top: 5px;
+        }
+
+        #status.error {
+            background: rgba(200, 0, 0, 0.8);
+        }
+
+        #status.loading {
+            background: rgba(200, 100, 0, 0.8);
         }
     </style>
 </head>
 <body>
-    <div class="file-selector" id="fileSelector">
-        <h2>🎬 4D Gaussian Splatting Viewer</h2>
-        <p>Choose a .splatv file to load:</p>
-        <button class="file-btn" id="loadYourBtn">
-            🎯 Load Your Model<br>
-            <small>model.splatv from GitHub</small>
-        </button>
-        <button class="file-btn example" id="loadExampleBtn">
-            ✅ Load Working Example<br>
-            <small>flame.splatv (HuggingFace)</small>
-        </button>
-        <p style="font-size: 11px; opacity: 0.7; margin-top: 20px;">
-            Or drag & drop a .splatv file anywhere
-        </p>
+    <div id="info">
+        <h3>🎬 4D Gaussian Splatting</h3>
+        <p><strong>Controls:</strong> Mouse = Look • Scroll = Zoom • Arrow Keys = Move</p>
+        <div class="file-buttons">
+            <a href="?url=https://github.com/lumigrade/LumiAR/raw/main/data/model.splatv" class="file-btn">🎯 Your Model</a>
+            <a href="?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv" class="file-btn example">✅ Example</a>
+        </div>
+        <div id="status">Click a button to load</div>
     </div>
-
-    <div class="controls-info hidden" id="controlsInfo">
-        <h4>🎮 Controls:</h4>
-        <p><strong>Mouse:</strong> Orbit camera<br>
-        <strong>Scroll:</strong> Zoom in/out<br>
-        <strong>Drag:</strong> Pan view</p>
-        <p style="margin-top: 10px; font-size: 10px; opacity: 0.7;">
-            Press H to hide this panel
-        </p>
+    
+    <div id="progress" style="width: 0%"></div>
+    <div id="message" style="display: none;"></div>
+    
+    <div class="scene" id="spinner">
+        <div class="cube-wrapper">
+            <div class="cube">
+                <div class="cube-faces">
+                    <div class="cube-face"></div>
+                    <div class="cube-face top"></div>
+                    <div class="cube-face front"></div>
+                    <div class="cube-face back"></div>
+                    <div class="cube-face right"></div>
+                    <div class="cube-face left"></div>
+                </div>
+            </div>
+        </div>
     </div>
-
-    <div id="progress-container" class="hidden">
-        <dialog id="progress-dialog">
-            <p>
-                <label for="progress-indicator">Loading scene...</label>
-            </p>
-            <progress max="100" id="progress-indicator"></progress>
-        </dialog>
-    </div>
-
-    <div class="drop-zone hidden" id="dropZone">
-        📁 Drop your .splatv file here
-    </div>
-
+    
     <canvas id="canvas"></canvas>
 
-    <script type="module">
-        // Import gsplat.js from CDN (official v1.2.0)
-        import * as SPLAT from 'https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/gsplat.js';
+    <div id="quality">
+        <span id="fps">-- FPS</span>
+    </div>
+    
+    <div id="caminfo">
+        <span id="camid">Ready</span>
+    </div>
 
-        const canvas = document.getElementById("canvas");
-        const progressDialog = document.getElementById("progress-dialog");
-        const progressIndicator = document.getElementById("progress-indicator");
-        const fileSelector = document.getElementById("fileSelector");
-        const controlsInfo = document.getElementById("controlsInfo");
-        const dropZone = document.getElementById("dropZone");
-
-        const renderer = new SPLAT.WebGLRenderer(canvas);
-        renderer.addProgram(new SPLAT.VideoRenderProgram(renderer));
-
-        const scene = new SPLAT.Scene();
-        const camera = new SPLAT.Camera();
-        const controls = new SPLAT.OrbitControls(camera, canvas);
-
-        let loading = false;
-
-        // File loading function
-        async function selectFile(file) {
-            if (loading) return;
-            loading = true;
-            
-            try {
-                if (file.name.endsWith(".splatv") || file.name.includes("splatv")) {
-                    scene.reset();
-                    showProgress();
-                    
-                    await SPLAT.SplatvLoader.LoadFromFileAsync(file, scene, camera, (progress) => {
-                        progressIndicator.value = progress * 100;
-                    });
-                    
-                    hideProgress();
-                    showControls();
-                    console.log("✅ File loaded successfully:", file.name);
-                } else {
-                    alert("Please select a .splatv file");
-                }
-            } catch (error) {
-                hideProgress();
-                alert("Error loading file: " + error.message);
-                console.error("Loading error:", error);
-            }
-            
-            loading = false;
+    <script>
+        // Status updates
+        function updateStatus(message, type = '') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = type;
+            console.log('STATUS [' + type + ']:', message);
         }
 
-        // URL loading function
-        async function loadFromUrl(url, name) {
-            if (loading) return;
-            loading = true;
+        // Check what's loading
+        const params = new URLSearchParams(window.location.search);
+        const url = params.get('url');
+        
+        if (url) {
+            if (url.includes('github.com/lumigrade')) {
+                updateStatus('Loading your model from GitHub...', 'loading');
+                document.getElementById('camid').textContent = 'Loading your model...';
+            } else if (url.includes('flame')) {
+                updateStatus('Loading flame.splatv example...', 'loading');
+                document.getElementById('camid').textContent = 'Loading example...';
+            } else {
+                updateStatus('Loading: ' + url.split('/').pop(), 'loading');
+            }
             
-            try {
-                scene.reset();
-                showProgress();
-                
-                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
-                    progressIndicator.value = progress * 100;
+            // Test file accessibility
+            fetch(url, { method: 'HEAD' })
+                .then(response => {
+                    if (response.ok) {
+                        const size = response.headers.get('content-length');
+                        updateStatus('File found! Size: ' + (size ? (parseInt(size)/1024/1024).toFixed(2) + 'MB' : 'unknown'), 'loading');
+                    } else {
+                        updateStatus('File not accessible: ' + response.status, 'error');
+                        document.getElementById('message').textContent = '❌ File not found: ' + response.status + '\nURL: ' + url;
+                        document.getElementById('message').style.display = 'flex';
+                    }
+                })
+                .catch(error => {
+                    updateStatus('Network error: ' + error.message, 'error');
                 });
-                
-                controls.setCameraTarget(camera.position.add(camera.forward.multiply(5)));
-                hideProgress();
-                showControls();
-                console.log("✅ URL loaded successfully:", name);
-            } catch (error) {
-                hideProgress();
-                alert("Error loading from URL: " + error.message);
-                console.error("URL loading error:", error);
-            }
+        } else {
+            updateStatus('Ready - click a button to load');
+        }
+
+        // Override console.log to show hybrid.js progress
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
             
-            loading = false;
-        }
-
-        // UI Functions
-        function showProgress() {
-            fileSelector.classList.add('hidden');
-            document.getElementById('progress-container').classList.remove('hidden');
-            progressDialog.showModal();
-        }
-
-        function hideProgress() {
-            document.getElementById('progress-container').classList.add('hidden');
-            progressDialog.close();
-        }
-
-        function showControls() {
-            controlsInfo.classList.remove('hidden');
-        }
-
-        // Button handlers
-        document.getElementById('loadYourBtn').addEventListener('click', function() {
-            loadFromUrl('https://github.com/lumigrade/LumiAR/raw/main/data/model.splatv', 'Your model.splatv');
-        });
-
-        document.getElementById('loadExampleBtn').addEventListener('click', function() {
-            loadFromUrl('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv', 'Flame example');
-        });
-
-        // Drag & Drop support
-        document.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('hidden');
-        });
-
-        document.addEventListener('dragleave', (e) => {
-            if (e.clientX === 0 && e.clientY === 0) {
-                dropZone.classList.add('hidden');
-            }
-        });
-
-        document.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('hidden');
-            
-            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-                selectFile(e.dataTransfer.files[0]);
-            }
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'h') {
-                controlsInfo.classList.toggle('hidden');
-            }
-        });
-
-        // Render loop
-        function startRenderLoop() {
-            const handleResize = () => {
-                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-            };
-
-            const frame = () => {
-                controls.update();
-                renderer.render(scene, camera);
-                requestAnimationFrame(frame);
-            };
-
-            handleResize();
-            window.addEventListener("resize", handleResize);
-            requestAnimationFrame(frame);
-        }
-
-        // Auto-load example if URL parameter exists
-        async function init() {
-            const params = new URLSearchParams(window.location.search);
-            const url = params.get('url');
-            
-            if (url) {
-                console.log('Auto-loading from URL parameter:', url);
-                if (url.includes('flame') || url.includes('huggingface')) {
-                    loadExample();
-                } else if (url.includes('github.com/lumigrade') || url.includes('model.splatv')) {
-                    loadYourFile();
-                } else {
-                    loadFromUrl(url, url.split('/').pop());
+            if (args[0] && typeof args[0] === 'string') {
+                if (args[0].includes('Loaded') && args[1]) {
+                    updateStatus('Loaded ' + args[1].toLocaleString() + ' gaussians', '');
+                } else if (args[0] === 'splat' && args[1] === 0) {
+                    updateStatus('✅ File loaded successfully!', '');
+                } else if (args[0].includes('Scene Bytes')) {
+                    updateStatus('Processing scene data...', 'loading');
                 }
             }
-            
-            // Start render loop
-            startRenderLoop();
-        }
+        };
 
-        // Initialize
-        init();
+        // Override console.error to catch hybrid.js errors
+        const originalError = console.error;
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            updateStatus('Error: ' + args.join(' '), 'error');
+            
+            if (args[0] && args[0].toString().includes('Unable to load')) {
+                document.getElementById('message').textContent = '❌ Unable to load file\nCheck that the file exists and is accessible';
+                document.getElementById('message').style.display = 'flex';
+            }
+        };
+
+        // Monitor when hybrid.js finishes loading
+        let checkCount = 0;
+        const checkLoading = setInterval(() => {
+            checkCount++;
+            
+            if (window.vertexCount && window.vertexCount > 0) {
+                updateStatus('✅ Loaded ' + window.vertexCount.toLocaleString() + ' gaussians');
+                document.getElementById('camid').textContent = window.vertexCount.toLocaleString() + ' gaussians';
+                clearInterval(checkLoading);
+            } else if (checkCount > 60) { // 30 seconds timeout
+                updateStatus('Timeout - file may not exist or be too large', 'error');
+                clearInterval(checkLoading);
+            }
+        }, 500);
     </script>
+    
+    <!-- Load hybrid.js which handles the actual rendering -->
+    <script src="hybrid.js"></script>
 </body>
 </html>
