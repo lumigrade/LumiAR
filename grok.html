@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎬 4D Gaussian Splatting</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; text-align: center; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <h2>🎬 4D Gaussian Splatting</h2>
+    <p>Controls: Mouse = Look • Scroll = Zoom • Arrow Keys = Move</p>
+    <button id="your-model">🎯 Your Model</button>
+    <button id="example">✅ Example</button>
+    <div id="fps">-- FPS</div>
+    <div id="status">Ready</div>
+    <input type="file" id="file-input" style="display: none;" accept=".splatv">
+
+    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@webxr-input-profiles/motion-controllers@1.0.0/dist/motion-controllers.module.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/webxr/VRButton.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/loaders/PLYLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsplat@1.2.9/dist/gsplat.umd.js"></script>
+    <script type="text/javascript">
+        const canvas = document.createElement('canvas');
+        document.body.appendChild(canvas);
+        canvas.style.width = '100vw';
+        canvas.style.height = '80vh';
+
+        const renderer = new SPLAT.WebGLRenderer(canvas);
+        renderer.addProgram(new SPLAT.VideoRenderProgram(renderer));
+
+        const scene = new SPLAT.Scene();
+        const camera = new SPLAT.Camera();
+        const controls = new SPLAT.OrbitControls(camera, canvas);
+
+        const fpsDisplay = document.getElementById('fps');
+        const status = document.getElementById('status');
+        const fileInput = document.getElementById('file-input');
+        const yourModelButton = document.getElementById('your-model');
+        const exampleButton = document.getElementById('example');
+
+        let startTime = Date.now();
+        let previousTime = Date.now();
+        let duration = 1; // seconds for full loop
+        let keys = {};
+
+        document.addEventListener('keydown', (e) => keys[e.key] = true);
+        document.addEventListener('keyup', (e) => keys[e.key] = false);
+
+        async function getNumFrames(url) {
+            const response = await fetch(url);
+            const buffer = await response.arrayBuffer();
+            const view = new DataView(buffer);
+            const magic = view.getUint32(0, true);
+            if (magic !== 0x674b) throw new Error('Invalid .splatv file');
+            const chunksSize = view.getUint32(4, true);
+            const chunksJson = new TextDecoder().decode(new Uint8Array(buffer, 8, chunksSize));
+            const chunks = JSON.parse(chunksJson);
+            return chunks[0].cameras.length;
+        }
+
+        async function loadModel(url) {
+            status.textContent = 'Loading...';
+            try {
+                const numFrames = await getNumFrames(url);
+                duration = numFrames / 25; // 25 FPS
+                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
+                    status.textContent = `Loading ${Math.round(progress * 100)}%`;
+                });
+                status.textContent = 'Ready';
+                startTime = Date.now();
+                previousTime = Date.now();
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        exampleButton.addEventListener('click', () => loadModel('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv'));
+
+        yourModelButton.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                loadModel(url);
+            }
+        });
+
+        const frame = () => {
+            const now = Date.now();
+            const delta = (now - previousTime) / 1000;
+            previousTime = now;
+
+            // Handle arrow key movement
+            const moveSpeed = 0.5;
+            const direction = new THREE.Vector3();
+            camera.getWorldDirection(direction);
+            const right = direction.clone().cross(camera.up).normalize();
+
+            if (keys['ArrowUp']) camera.position.addScaledVector(direction, moveSpeed * delta);
+            if (keys['ArrowDown']) camera.position.addScaledVector(direction, -moveSpeed * delta);
+            if (keys['ArrowLeft']) camera.position.addScaledVector(right, -moveSpeed * delta);
+            if (keys['ArrowRight']) camera.position.addScaledVector(right, moveSpeed * delta);
+
+            controls.update();
+
+            // Animate time
+            const elapsed = (now - startTime) / 1000;
+            const time = (elapsed / duration) % 1;
+            renderer.programs[0].uniforms.uTime.value = time;
+
+            renderer.render(scene, camera);
+
+            fpsDisplay.textContent = `${Math.round(1 / delta)} FPS`;
+
+            requestAnimationFrame(frame);
+        };
+
+        requestAnimationFrame(frame);
+    </script>
+</body>
+</html>
