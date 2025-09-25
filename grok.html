@@ -12,9 +12,10 @@
 <body>
     <h2>🎬 4D Gaussian Splatting</h2>
     <p>Controls: Mouse = Look • Scroll = Zoom • Arrow Keys = Move</p>
+    <input type="text" id="url-input" placeholder="Enter .splatv URL" style="width: 300px;">
+    <button id="load-url">Load URL</button>
     <button id="your-model">🎯 Your Model</button>
     <button id="example">✅ Example</button>
-    <p>Click a button to load</p>
     <div id="fps">-- FPS</div>
     <div id="status">Ready</div>
     <input type="file" id="file-input" style="display: none;" accept=".splatv">
@@ -41,12 +42,14 @@
         const fpsDisplay = document.getElementById('fps');
         const status = document.getElementById('status');
         const fileInput = document.getElementById('file-input');
+        const urlInput = document.getElementById('url-input');
+        const loadUrlButton = document.getElementById('load-url');
         const yourModelButton = document.getElementById('your-model');
         const exampleButton = document.getElementById('example');
 
         let startTime = Date.now();
         let previousTime = Date.now();
-        let duration = 25; // Default for example
+        let duration = 25; // Default
         let keys = {};
 
         document.addEventListener('keydown', (e) => keys[e.key] = true);
@@ -80,6 +83,11 @@
             }
         }
 
+        loadUrlButton.addEventListener('click', () => {
+            const url = urlInput.value || 'https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/grok.splatv';
+            loadModel(url);
+        });
+
         exampleButton.addEventListener('click', () => loadModel('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv'));
 
         yourModelButton.addEventListener('click', () => fileInput.click());
@@ -91,6 +99,9 @@
                 loadModel(url);
             }
         });
+
+        // Load default URL on start
+        loadModel('https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/grok.splatv');
 
         const frame = () => {
             const now = Date.now();
