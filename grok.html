@@ -21,10 +21,8 @@
     <input type="file" id="file-input" style="display: none;" accept=".splatv">
 
     <script type="module">
-        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
-        import { PLYLoader } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/loaders/PLYLoader.js';
         import * as gsplat from 'https://cdn.jsdelivr.net/npm/gsplat@1.2.9/dist/gsplat.js';
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
         const canvas = document.createElement('canvas');
         document.body.appendChild(canvas);
@@ -36,7 +34,7 @@
 
         const scene = new gsplat.Scene();
         const camera = new gsplat.Camera();
-        const controls = new OrbitControls(camera, canvas);
+        const controls = new gsplat.OrbitControls(camera, canvas);
 
         const fpsDisplay = document.getElementById('fps');
         const status = document.getElementById('status');
