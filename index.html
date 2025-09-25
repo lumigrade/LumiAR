@@ -15,182 +15,48 @@
             font-family: sans-serif;
             background: black;
             text-shadow: 0 0 3px black;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
         }
         
         a, body {
             color: white;
         }
         
-        .container {
-            text-align: center;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 40px;
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        h1 {
-            margin: 0 0 20px 0;
-            font-size: 2em;
-        }
-        
-        p {
-            margin: 10px 0;
-            opacity: 0.8;
-        }
-        
-        .button {
-            display: inline-block;
-            padding: 15px 30px;
-            margin: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            text-decoration: none;
-            border-radius: 25px;
-            font-weight: bold;
-            transition: transform 0.3s ease;
-        }
-        
-        .button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        
-        .example-btn {
-            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
-        }
-        
-        code {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-        }
-
-        /* Viewer styles when loaded */
-        .viewer-active #info {
+        #info {
             z-index: 100;
             position: absolute;
             top: 10px;
             left: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 12px;
-            backdrop-filter: blur(10px);
-            max-width: 200px;
-        }
-        
-        .viewer-active #info h3 {
-            margin: 0 0 5px 0;
-            font-size: 14px;
-        }
-        
-        .viewer-active #info p {
-            margin: 2px 0;
-            font-size: 10px;
-            opacity: 0.8;
-        }
-
-        .viewer-active details {
-            font-size: 10px;
-        }
-
-        .viewer-active #instructions {
             background: rgba(0, 0, 0, 0.9);
+            padding: 12px;
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+            max-width: 250px;
+        }
+        
+        h3 {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+        }
+        
+        p {
+            margin: 4px 0;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        details {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        #instructions {
+            background: rgba(255, 255, 255, 0.1);
             white-space: pre-wrap;
             padding: 8px;
-            border-radius: 6px;
-            font-size: 9px;
-            margin-top: 5px;
-        }
-        
-        .viewer-active #progress {
-            position: absolute;
-            top: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
-            z-index: 99;
-            transition: width 0.3s ease-in-out;
-        }
-
-        .viewer-active #message {
-            position: absolute;
-            display: flex;
-            top: 0;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 1000;
-            height: 100%;
-            width: 100%;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
-            color: #ff6b6b;
-            pointer-events: none;
-            background: rgba(0, 0, 0, 0.95);
-            backdrop-filter: blur(5px);
-        }
-
-        .viewer-active .scene {
-            position: absolute;
-            display: flex;
-            top: 0;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 2;
-            height: 100%;
-            width: 100%;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .viewer-active #canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            touch-action: none;
-            cursor: grab;
-        }
-
-        .viewer-active #canvas:active {
-            cursor: grabbing;
-        }
-
-        .viewer-active #quality, .viewer-active #caminfo {
-            position: absolute;
-            z-index: 999;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 6px 10px;
-            border-radius: 15px;
+            border-radius: 4px;
             font-size: 11px;
-            backdrop-filter: blur(10px);
-        }
-
-        .viewer-active #quality {
-            bottom: 10px;
-            right: 10px;
-        }
-
-        .viewer-active #caminfo {
-            top: 10px;
-            right: 10px;
-        }
-
-        @keyframes rotation {
-            0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
-            50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
-            100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
+            margin-top: 5px;
+            font-family: 'Courier New', monospace;
         }
 
         .cube-wrapper {
@@ -226,227 +92,249 @@
         .cube-face.right { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px); }
         .cube-face.left { transform-origin: 50% 0; transform: rotateX(-90deg) translateY(-60px) translateZ(60px); }
 
-        .hide-ui #info {
-            display: none !important;
+        @keyframes rotation {
+            0% { transform: rotateX(45deg) rotateY(0) rotateZ(45deg); }
+            50% { transform: rotateX(45deg) rotateY(0) rotateZ(225deg); }
+            100% { transform: rotateX(45deg) rotateY(0) rotateZ(405deg); }
+        }
+
+        .scene, #message {
+            position: absolute;
+            display: flex;
+            top: 0;
+            right: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 2;
+            height: 100%;
+            width: 100%;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #message {
+            font-weight: bold;
+            font-size: 18px;
+            color: #ff6b6b;
+            pointer-events: none;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 1000;
+        }
+
+        #progress {
+            position: absolute;
+            top: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            z-index: 99;
+            transition: width 0.3s ease-in-out;
+        }
+
+        #quality, #caminfo {
+            position: absolute;
+            z-index: 999;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 6px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        #quality { bottom: 15px; right: 15px; }
+        #caminfo { top: 15px; right: 15px; }
+        
+        #canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            cursor: grab;
+        }
+
+        #canvas:active { cursor: grabbing; }
+
+        .debug-log {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            max-width: 300px;
+            max-height: 100px;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🎬 4D Gaussian Splatting Viewer</h1>
-        <p>Choose which file to load:</p>
-        
-        <!-- Fixed: Use relative path, not HuggingFace URL -->
-        <a href="?url=./data/splat-animation.splatv" class="button">
-            🎯 Load Your File<br>
-            <small><code>./data/splat-animation.splatv</code></small>
-        </a>
-        
-        <a href="?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv" class="button example-btn">
-            ✅ Load Working Example<br>
-            <small><code>flame.splatv</code></small>
-        </a>
-        
-        <p style="margin-top: 30px; font-size: 12px; opacity: 0.6;">
-            Make sure <code>hybrid.js</code> is in the same folder as this file<br>
-            <strong>Controls:</strong> Mouse = Look Around • WASD = Move • Scroll = Zoom
-        </p>
+    <div id="info">
+        <h3>🎬 4D Gaussian Splatting</h3>
+        <p id="status">Ready to load...</p>
+        <p id="fileUrl" style="font-size: 10px; opacity: 0.7;"></p>
+        <details>
+            <summary>Controls (hybrid.js style)</summary>
+            <div id="instructions">Mouse: Look around (drag)
+Scroll: Zoom
+Arrow Keys: Move camera
+  ↑↓: Forward/Back
+  ←→: Left/Right
+  Shift+↑↓: Up/Down
+WASD: Rotate view (hybrid.js default)
+Numbers: Switch cameras
+P: Auto-play</div>
+        </details>
+    </div>
+    
+    <div id="progress" style="width: 0%"></div>
+    <div id="message" style="display: none;"></div>
+    
+    <div class="scene" id="spinner">
+        <div class="cube-wrapper">
+            <div class="cube">
+                <div class="cube-faces">
+                    <div class="cube-face"></div>
+                    <div class="cube-face top"></div>
+                    <div class="cube-face front"></div>
+                    <div class="cube-face back"></div>
+                    <div class="cube-face right"></div>
+                    <div class="cube-face left"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+
+    <div id="quality">
+        <span id="fps">-- FPS</span>
+    </div>
+    
+    <div id="caminfo">
+        <span id="camid">Initializing...</span>
+    </div>
+
+    <div class="debug-log" id="debugLog">
+        Debug log will appear here...
     </div>
 
     <script>
-        // If there's a URL parameter, load the viewer
-        const params = new URLSearchParams(window.location.search);
-        if (params.get('url')) {
-            console.log('Loading:', params.get('url'));
-            
-            // Add viewer class to body for styling
-            document.body.className = 'viewer-active';
-            
-            // Replace the current page content with the viewer
-            document.body.innerHTML = `
-                <div id="info">
-                    <h3>🎬 4D Viewer</h3>
-                    <p id="fileStatus">Loading: ${params.get('url').split('/').pop()}</p>
-                    <details>
-                        <summary>Controls</summary>
-                        <div id="instructions">Mouse: Look around
-WASD: Move camera
-Scroll: Zoom
-Numbers: Switch cameras
-P: Auto-play
-H: Hide UI</div>
-                    </details>
-                </div>
-                
-                <div id="progress" style="width: 0%"></div>
-                <div id="message" style="display: none;"></div>
-                
-                <div class="scene" id="spinner">
-                    <div class="cube-wrapper">
-                        <div class="cube">
-                            <div class="cube-faces">
-                                <div class="cube-face"></div>
-                                <div class="cube-face top"></div>
-                                <div class="cube-face front"></div>
-                                <div class="cube-face back"></div>
-                                <div class="cube-face right"></div>
-                                <div class="cube-face left"></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <canvas id="canvas"></canvas>
-
-                <div id="quality">
-                    <span id="fps">-- FPS</span>
-                </div>
-                
-                <div id="caminfo">
-                    <span id="camid">Loading...</span>
-                </div>
-            `;
-            
-            // Improved camera controls - override hybrid.js behavior
-            let originalHybridLoaded = false;
-            
-            // Load hybrid.js
-            const script = document.createElement('script');
-            script.src = 'hybrid.js';
-            script.onload = () => {
-                console.log('✅ hybrid.js loaded successfully');
-                originalHybridLoaded = true;
-                
-                // Wait a moment for hybrid.js to initialize, then override controls
-                setTimeout(() => {
-                    setupImprovedControls();
-                }, 1000);
-            };
-            script.onerror = () => {
-                document.getElementById('message').textContent = '❌ Error: hybrid.js not found. Make sure hybrid.js is in the same folder as index.html';
-                document.getElementById('message').style.display = 'flex';
-                document.getElementById('spinner').style.display = 'none';
-            };
-            document.head.appendChild(script);
-            
-            // Improved camera control system
-            function setupImprovedControls() {
-                console.log('🎮 Setting up improved camera controls');
-                
-                const canvas = document.getElementById('canvas');
-                if (!canvas) return;
-                
-                let isMouseDown = false;
-                let lastMouseX = 0;
-                let lastMouseY = 0;
-                
-                // Mouse look controls
-                canvas.addEventListener('mousedown', (e) => {
-                    isMouseDown = true;
-                    lastMouseX = e.clientX;
-                    lastMouseY = e.clientY;
-                    e.preventDefault();
-                });
-                
-                canvas.addEventListener('mousemove', (e) => {
-                    if (!isMouseDown) return;
-                    
-                    const deltaX = e.clientX - lastMouseX;
-                    const deltaY = e.clientY - lastMouseY;
-                    
-                    // Apply rotation to view matrix (if available globally)
-                    if (window.viewMatrix) {
-                        const rotSpeed = 0.005;
-                        
-                        // Horizontal rotation (around Y axis)
-                        const cosY = Math.cos(deltaX * rotSpeed);
-                        const sinY = Math.sin(deltaX * rotSpeed);
-                        
-                        // Vertical rotation (around X axis)  
-                        const cosX = Math.cos(deltaY * rotSpeed);
-                        const sinX = Math.sin(deltaY * rotSpeed);
-                        
-                        // Simple rotation application
-                        const temp = window.viewMatrix[0];
-                        window.viewMatrix[0] = temp * cosY - window.viewMatrix[2] * sinY;
-                        window.viewMatrix[2] = temp * sinY + window.viewMatrix[2] * cosY;
-                        
-                        window.carousel = false; // Stop auto-rotation
-                    }
-                    
-                    lastMouseX = e.clientX;
-                    lastMouseY = e.clientY;
-                    e.preventDefault();
-                });
-                
-                canvas.addEventListener('mouseup', () => {
-                    isMouseDown = false;
-                });
-                
-                canvas.addEventListener('mouseleave', () => {
-                    isMouseDown = false;
-                });
-                
-                // Enhanced keyboard controls
-                const activeKeys = new Set();
-                
-                document.addEventListener('keydown', (e) => {
-                    activeKeys.add(e.code);
-                    
-                    // Hide UI toggle
-                    if (e.code === 'KeyH') {
-                        document.body.classList.toggle('hide-ui');
-                        e.preventDefault();
-                    }
-                    
-                    // Stop auto-play on manual input
-                    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE'].includes(e.code)) {
-                        if (window.carousel !== undefined) {
-                            window.carousel = false;
-                        }
-                        e.preventDefault();
-                    }
-                });
-                
-                document.addEventListener('keyup', (e) => {
-                    activeKeys.delete(e.code);
-                });
-                
-                // Camera movement loop
-                function updateCameraMovement() {
-                    if (window.viewMatrix) {
-                        const moveSpeed = 0.02;
-                        
-                        // WASD for translation (not rotation)
-                        if (activeKeys.has('KeyW')) {
-                            window.viewMatrix[14] -= moveSpeed; // Move forward
-                        }
-                        if (activeKeys.has('KeyS')) {
-                            window.viewMatrix[14] += moveSpeed; // Move backward  
-                        }
-                        if (activeKeys.has('KeyA')) {
-                            window.viewMatrix[12] -= moveSpeed; // Move left
-                        }
-                        if (activeKeys.has('KeyD')) {
-                            window.viewMatrix[12] += moveSpeed; // Move right
-                        }
-                        if (activeKeys.has('KeyQ')) {
-                            window.viewMatrix[13] -= moveSpeed; // Move down
-                        }
-                        if (activeKeys.has('KeyE')) {
-                            window.viewMatrix[13] += moveSpeed; // Move up
-                        }
-                    }
-                    
-                    requestAnimationFrame(updateCameraMovement);
-                }
-                
-                updateCameraMovement();
-                
-                // Update status
-                document.getElementById('fileStatus').textContent = 'Controls active - Mouse to look, WASD to move';
+        // Debug logging function
+        function debugLog(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            console.log(`[${timestamp}] ${message}`);
+            const debugEl = document.getElementById('debugLog');
+            if (debugEl) {
+                debugEl.innerHTML += `<div>[${timestamp.slice(-8)}] ${message}</div>`;
+                debugEl.scrollTop = debugEl.scrollHeight;
             }
         }
+
+        // Get URL parameter and set up the correct URL for your file
+        const params = new URLSearchParams(window.location.search);
+        let targetUrl = params.get('url');
+        
+        if (!targetUrl) {
+            // Default to your file
+            targetUrl = './data/splat-animation.splatv';
+            debugLog(`No URL param, defaulting to: ${targetUrl}`);
+        }
+
+        debugLog(`Target URL: ${targetUrl}`);
+        document.getElementById('fileUrl').textContent = targetUrl;
+        
+        // Update status
+        document.getElementById('status').textContent = 'Loading: ' + targetUrl.split('/').pop();
+        
+        // Set URL parameter for hybrid.js to pick up
+        if (!params.get('url')) {
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('url', targetUrl);
+            debugLog(`Setting URL parameter: ${newUrl.search}`);
+            // Don't redirect, just update the params object that hybrid.js will read
+            window.history.replaceState({}, '', newUrl);
+        }
+
+        // Monitor loading progress
+        let loadingStartTime = Date.now();
+        let progressInterval = setInterval(() => {
+            const elapsed = Date.now() - loadingStartTime;
+            if (elapsed > 10000) { // 10 seconds timeout
+                debugLog('❌ Loading timeout - file may not exist');
+                document.getElementById('status').textContent = 'Timeout loading file';
+                clearInterval(progressInterval);
+            }
+        }, 1000);
+
+        // Override some console methods to capture hybrid.js debug info
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            if (args[0] && typeof args[0] === 'string') {
+                if (args[0].includes('Loaded') || args[0].includes('Scene') || args[0].includes('fps')) {
+                    debugLog(`📊 ${args.join(' ')}`);
+                }
+            }
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            debugLog(`❌ ERROR: ${args.join(' ')}`);
+        };
+
+        // Monitor when hybrid.js loads and starts working
+        let hybridCheckInterval = setInterval(() => {
+            // Check if hybrid.js has created its variables
+            if (window.vertexCount !== undefined) {
+                debugLog(`✅ hybrid.js active, vertexCount: ${window.vertexCount}`);
+                if (window.vertexCount > 0) {
+                    document.getElementById('status').textContent = `Loaded ${window.vertexCount.toLocaleString()} gaussians`;
+                    clearInterval(progressInterval);
+                    clearInterval(hybridCheckInterval);
+                }
+            }
+            
+            // Check for cameras
+            if (window.cameras && window.cameras.length > 0) {
+                debugLog(`📹 Found ${window.cameras.length} cameras`);
+                document.getElementById('caminfo').textContent = `${window.cameras.length} cameras`;
+            }
+        }, 500);
+
+        // Try to detect file loading errors
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+            debugLog(`🌐 Fetching: ${url}`);
+            return originalFetch(url, options).then(response => {
+                if (!response.ok) {
+                    debugLog(`❌ Fetch failed: ${response.status} ${response.statusText}`);
+                    document.getElementById('status').textContent = `Error ${response.status}: ${response.statusText}`;
+                    document.getElementById('message').textContent = `❌ Failed to load file: ${response.status} ${response.statusText}\n\nCheck that your file exists at:\n${url}`;
+                    document.getElementById('message').style.display = 'flex';
+                } else {
+                    debugLog(`✅ Fetch success: ${response.status}`);
+                }
+                return response;
+            }).catch(error => {
+                debugLog(`❌ Fetch error: ${error.message}`);
+                document.getElementById('status').textContent = `Network error: ${error.message}`;
+                document.getElementById('message').textContent = `❌ Network error loading file:\n${error.message}\n\nCheck that your file exists at:\n${url}`;
+                document.getElementById('message').style.display = 'flex';
+                throw error;
+            });
+        };
+
+        debugLog('🚀 Initializing viewer...');
     </script>
+    
+    <!-- Load hybrid.js which handles all the actual rendering and controls -->
+    <script src="hybrid.js" onload="debugLog('✅ hybrid.js loaded')" onerror="debugLog('❌ hybrid.js failed to load')"></script>
 </body>
 </html>
