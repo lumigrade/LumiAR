@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🎭 AR Splat 400-Frame Sequence Player</title>
+    <title>🎭 AR Splat 4D Animation - Professional gsplat.js</title>
     <style>
         * {
             margin: 0;
@@ -134,23 +134,6 @@
             background: rgba(46, 204, 113, 1);
         }
 
-        .playback-info {
-            position: fixed;
-            top: 120px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            font-family: monospace;
-            z-index: 100;
-            display: none;
-        }
-
-        .playback-info.visible {
-            display: block;
-        }
-
         .debug {
             position: fixed;
             top: 120px;
@@ -165,21 +148,40 @@
             max-width: 300px;
             overflow-y: auto;
         }
+
+        .converter-info {
+            position: fixed;
+            top: 120px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-family: monospace;
+            z-index: 100;
+            max-width: 300px;
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🎭 AR Splat 400-Frame Sequence Player</h1>
-        <p>Gaussian Splat sequence animation with AR placement</p>
+        <h1>🎭 AR Splat 4D Animation</h1>
+        <p>Professional gsplat.js VideoRenderProgram with GPU temporal blending</p>
     </div>
 
-    <div class="status" id="status">Initializing...</div>
+    <div class="status" id="status">Ready for .splatv file...</div>
 
-    <div class="playback-info" id="playbackInfo">
-        <div>Frame: <span id="currentFrame">0</span>/<span id="totalFrames">400</span></div>
-        <div>FPS: <span id="currentFPS">0</span></div>
-        <div>Gaussians: <span id="gaussianCount">0</span></div>
-        <div>Status: <span id="playStatus">Stopped</span></div>
+    <div class="converter-info" id="converterInfo">
+        <strong>📋 Required Steps:</strong><br>
+        1. Convert your .splat sequence to .splatv:<br>
+        <code>node splat2splatv.js ./data/splat output.splatv</code><br><br>
+        2. Upload the .splatv file to your data folder<br>
+        3. Update the URL in the code below<br><br>
+        <strong>Why .splatv?</strong><br>
+        • GPU temporal blending (no flickering)<br>
+        • Professional 4D animation<br>
+        • Built-in motion interpolation<br>
+        • Smooth 25fps automatically
     </div>
 
     <div class="debug" id="debug">
@@ -188,34 +190,31 @@
 
     <div class="loading" id="loading">
         <div class="spinner"></div>
-        <div id="loadingText">Initializing gsplat.js...</div>
+        <div id="loadingText">Initializing 4D gsplat.js...</div>
     </div>
 
     <canvas id="canvas3d"></canvas>
 
     <div class="controls">
-        <button class="control-btn" id="loadBtn" onclick="loadAllFrames()">🎬 Load All 400 Frames</button>
-        <button class="control-btn" id="playBtn" onclick="togglePlayback()" disabled>▶️ Play Sequence</button>
+        <button class="control-btn" id="loadBtn" onclick="loadSplatvFile()">🎬 Load .splatv Animation</button>
         <button class="ar-button control-btn" id="arBtn" onclick="startAR()" disabled>🚀 AR Mode</button>
     </div>
 
     <script type="module">
-        // Global variables - keeping it simple like the working test
+        // Global variables
         let SPLAT = null;
         let scene, camera, renderer, controls;
-        let sequencePlayer = null;
+        let currentSplatv = null;
 
         // DOM elements
         const canvas = document.getElementById('canvas3d');
         const loading = document.getElementById('loading');
         const status = document.getElementById('status');
         const debug = document.getElementById('debug');
-        const playbackInfo = document.getElementById('playbackInfo');
         const loadBtn = document.getElementById('loadBtn');
-        const playBtn = document.getElementById('playBtn');
         const arBtn = document.getElementById('arBtn');
 
-        // Debug logging - exactly like the working test
+        // Debug logging
         function log(message) {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[${timestamp}] ${message}`);
@@ -223,7 +222,6 @@
             debug.scrollTop = debug.scrollHeight;
         }
 
-        // Status updates
         function updateStatus(message, type = 'info') {
             status.textContent = message;
             status.className = `status ${type}`;
@@ -235,353 +233,10 @@
             log(`LOADING: ${text}`);
         }
 
-        // Professional Sequence Player with full preload and frame blending
-        class ProfessionalSequencePlayer {
-            constructor() {
-                this.folderPath = './data/splat';
-                this.maxFrames = 400;
-                this.currentFrame = 1;
-                this.isPlaying = false;
-                this.currentSplat = null;
-                this.targetFPS = 25;
-                this.frameInterval = 1000 / this.targetFPS;
-                this.lastFrameTime = 0;
-                this.actualFPS = 0;
-                this.fpsCounter = 0;
-                this.fpsStartTime = Date.now();
-                this.isLoaded = false;
-                
-                // Full frame storage - load ALL frames
-                this.allFrames = new Map();
-                this.loadingProgress = 0;
-                this.totalFramesToLoad = this.maxFrames;
-                
-                // Frame blending for smooth transitions
-                this.enableBlending = true;
-                this.blendDuration = 50; // ms for blend transition
-                this.currentBlendTime = 0;
-                this.isBlending = false;
-                this.previousSplat = null;
-                
-                log('🎬 Professional sequence player created - will load all 400 frames');
-            }
-
-            async loadAllFrames() {
-                try {
-                    updateStatus('Loading all 400 frames... 0%', 'info');
-                    log('📥 Starting to load all 400 frames...');
-                    
-                    // Clear everything first
-                    scene.reset();
-                    this.allFrames.clear();
-                    this.currentSplat = null;
-                    this.loadingProgress = 0;
-                    
-                    const startTime = Date.now();
-                    let loadedCount = 0;
-                    
-                    // Load frames in batches for better progress feedback
-                    const batchSize = 10; // Load 10 frames at a time
-                    
-                    for (let batchStart = 1; batchStart <= this.maxFrames; batchStart += batchSize) {
-                        const batchEnd = Math.min(batchStart + batchSize - 1, this.maxFrames);
-                        const batchFrames = [];
-                        
-                        // Create batch of frame numbers
-                        for (let frameNum = batchStart; frameNum <= batchEnd; frameNum++) {
-                            batchFrames.push(frameNum);
-                        }
-                        
-                        log(`📦 Loading batch: frames ${batchStart} to ${batchEnd}`);
-                        
-                        // Load batch in parallel
-                        const batchPromises = batchFrames.map(async (frameNum) => {
-                            try {
-                                const frameNumStr = frameNum.toString().padStart(6, '0');
-                                const url = `${this.folderPath}/frame_${frameNumStr}.splat`;
-                                
-                                const response = await fetch(url);
-                                if (!response.ok) {
-                                    throw new Error(`Frame ${frameNum} not found: ${response.status}`);
-                                }
-                                
-                                const arrayBuffer = await response.arrayBuffer();
-                                const buffer = new Uint8Array(arrayBuffer);
-                                const data = SPLAT.SplatData.Deserialize(buffer);
-                                const splat = new SPLAT.Splat(data);
-                                
-                                this.allFrames.set(frameNum, splat);
-                                loadedCount++;
-                                
-                                // Update progress
-                                this.loadingProgress = Math.round((loadedCount / this.totalFramesToLoad) * 100);
-                                updateStatus(`Loading all frames... ${this.loadingProgress}%`, 'info');
-                                
-                                return { frameNum, splat, gaussians: data.vertexCount };
-                                
-                            } catch (error) {
-                                log(`❌ Failed to load frame ${frameNum}: ${error.message}`);
-                                throw error;
-                            }
-                        });
-                        
-                        // Wait for batch to complete
-                        const batchResults = await Promise.allSettled(batchPromises);
-                        
-                        // Check for failures
-                        const failures = batchResults.filter(result => result.status === 'rejected');
-                        if (failures.length > 0) {
-                            log(`⚠️ ${failures.length} frames failed in batch ${batchStart}-${batchEnd}`);
-                        }
-                        
-                        // Small delay between batches to keep UI responsive
-                        await new Promise(resolve => setTimeout(resolve, 50));
-                    }
-                    
-                    const loadTime = (Date.now() - startTime) / 1000;
-                    
-                    if (this.allFrames.size === this.maxFrames) {
-                        // All frames loaded successfully
-                        this.isLoaded = true;
-                        
-                        // Set up first frame
-                        const firstFrame = this.allFrames.get(1);
-                        if (firstFrame) {
-                            scene.addObject(firstFrame);
-                            this.currentSplat = firstFrame;
-                            this.currentFrame = 1;
-                            this.positionCamera(firstFrame);
-                        }
-                        
-                        updateStatus(`✅ All 400 frames loaded in ${loadTime.toFixed(1)}s! Ready for smooth playback`, 'success');
-                        log(`✅ Successfully loaded all ${this.allFrames.size} frames in ${loadTime.toFixed(1)}s`);
-                        log(`📊 First frame: ${firstFrame.data.vertexCount} gaussians`);
-                        
-                        return true;
-                    } else {
-                        throw new Error(`Only loaded ${this.allFrames.size}/${this.maxFrames} frames`);
-                    }
-                    
-                } catch (error) {
-                    updateStatus(`❌ Failed to load all frames: ${error.message}`, 'error');
-                    log(`❌ Load all frames failed: ${error.message}`);
-                    return false;
-                }
-            }
-
-            positionCamera(splat) {
-                if (!controls) return;
-                
-                try {
-                    const bounds = splat.bounds;
-                    const center = bounds.center();
-                    const size = bounds.size();
-                    const distance = Math.sqrt(size.x * size.x + size.y * size.y + size.z * size.z) * 2;
-                    
-                    camera.position = new SPLAT.Vector3(
-                        center.x + distance * 0.7,
-                        center.y + distance * 0.5,
-                        center.z + distance * 0.7
-                    );
-                    controls.setCameraTarget(center);
-                    
-                    log(`📹 Camera positioned at distance ${distance.toFixed(2)}`);
-                } catch (error) {
-                    log(`⚠️ Camera positioning failed: ${error.message}`);
-                }
-            }
-
-            smoothSplatTransition(newSplat) {
-                if (!this.enableBlending || !this.currentSplat) {
-                    // No blending, direct replacement
-                    if (this.currentSplat) {
-                        scene.removeObject(this.currentSplat);
-                    }
-                    scene.addObject(newSplat);
-                    this.currentSplat = newSplat;
-                    return;
-                }
-                
-                // Start blend transition
-                this.previousSplat = this.currentSplat;
-                this.currentSplat = newSplat;
-                this.isBlending = true;
-                this.currentBlendTime = 0;
-                
-                // Add new splat to scene (will blend in)
-                scene.addObject(newSplat);
-                
-                // Start blend animation
-                this.performBlendTransition();
-            }
-
-            performBlendTransition() {
-                if (!this.isBlending) return;
-                
-                const blendProgress = Math.min(this.currentBlendTime / this.blendDuration, 1.0);
-                
-                try {
-                    // Fade out previous splat
-                    if (this.previousSplat && this.previousSplat.material) {
-                        this.previousSplat.material.opacity = 1.0 - blendProgress;
-                        this.previousSplat.material.transparent = true;
-                    }
-                    
-                    // Fade in current splat
-                    if (this.currentSplat && this.currentSplat.material) {
-                        this.currentSplat.material.opacity = blendProgress;
-                        this.currentSplat.material.transparent = blendProgress < 1.0;
-                    }
-                } catch (error) {
-                    // If material blending fails, fall back to direct replacement
-                    log(`⚠️ Blend transition failed, using direct replacement: ${error.message}`);
-                    this.enableBlending = false;
-                    
-                    if (this.previousSplat) {
-                        scene.removeObject(this.previousSplat);
-                    }
-                    this.isBlending = false;
-                    return;
-                }
-                
-                this.currentBlendTime += 16; // Assuming ~60fps for smooth blending
-                
-                if (blendProgress >= 1.0) {
-                    // Blend complete
-                    if (this.previousSplat) {
-                        scene.removeObject(this.previousSplat);
-                    }
-                    
-                    // Ensure current splat is fully opaque
-                    if (this.currentSplat && this.currentSplat.material) {
-                        this.currentSplat.material.opacity = 1.0;
-                        this.currentSplat.material.transparent = false;
-                    }
-                    
-                    this.isBlending = false;
-                    this.previousSplat = null;
-                } else {
-                    // Continue blending
-                    requestAnimationFrame(() => this.performBlendTransition());
-                }
-            }
-
-            async startSequence() {
-                if (!this.isLoaded) {
-                    updateStatus('❌ Load all frames first!', 'error');
-                    return;
-                }
-
-                if (this.isPlaying) return;
-                
-                this.isPlaying = true;
-                this.lastFrameTime = performance.now();
-                this.fpsStartTime = performance.now();
-                this.fpsCounter = 0;
-                
-                updateStatus('▶️ Playing smooth 400-frame sequence with frame blending', 'success');
-                log(`▶️ Starting professional sequence playback from frame ${this.currentFrame}`);
-                playbackInfo.classList.add('visible');
-                
-                this.animationLoop();
-            }
-
-            async animationLoop() {
-                if (!this.isPlaying) return;
-                
-                const now = performance.now();
-                const deltaTime = now - this.lastFrameTime;
-                
-                if (deltaTime >= this.frameInterval) {
-                    this.nextFrame();
-                    this.lastFrameTime = now;
-                    
-                    // Calculate FPS
-                    this.fpsCounter++;
-                    if (this.fpsCounter % 5 === 0) {
-                        const elapsed = (now - this.fpsStartTime) / 1000;
-                        this.actualFPS = Math.round(this.fpsCounter / elapsed);
-                    }
-                }
-                
-                if (this.isPlaying) {
-                    requestAnimationFrame(() => this.animationLoop());
-                }
-            }
-
-            nextFrame() {
-                this.currentFrame++;
-                if (this.currentFrame > this.maxFrames) {
-                    this.currentFrame = 1; // Loop back
-                    log('🔄 Sequence looped back to frame 1');
-                }
-                
-                // Get frame instantly from memory (no loading!)
-                const frame = this.allFrames.get(this.currentFrame);
-                if (frame) {
-                    // Smooth transition with blending
-                    this.smoothSplatTransition(frame);
-                    
-                    this.updatePlaybackInfo();
-                    
-                    if (this.currentFrame % 25 === 0) {
-                        log(`📊 Professional playback: frame ${this.currentFrame}/${this.maxFrames}, FPS: ${this.actualFPS}`);
-                    }
-                } else {
-                    log(`❌ Frame ${this.currentFrame} not found in memory!`);
-                }
-            }
-
-            stop() {
-                this.isPlaying = false;
-                this.isBlending = false;
-                playbackInfo.classList.remove('visible');
-                updateStatus('⏹️ Professional sequence stopped', 'info');
-                log(`⏹️ Stopped at frame ${this.currentFrame}`);
-            }
-
-            updatePlaybackInfo() {
-                if (!this.currentSplat) return;
-                
-                document.getElementById('currentFrame').textContent = this.currentFrame;
-                document.getElementById('currentFPS').textContent = this.actualFPS;
-                document.getElementById('gaussianCount').textContent = this.currentSplat.data.vertexCount.toLocaleString();
-                document.getElementById('playStatus').textContent = this.isPlaying ? `Playing (${this.allFrames.size} loaded)` : 'Ready';
-            }
-
-            placeInAR(position) {
-                if (this.currentSplat) {
-                    this.currentSplat.position = new SPLAT.Vector3(position.x, position.y, position.z);
-                    
-                    // Apply same position to all frames for consistent AR placement
-                    this.allFrames.forEach(splat => {
-                        splat.position = new SPLAT.Vector3(position.x, position.y, position.z);
-                    });
-                    
-                    updateStatus('🚀 AR Mode: Professional sequence placed with blending!', 'success');
-                    log(`🚀 AR placement applied to all ${this.allFrames.size} frames: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
-                }
-            }
-
-            dispose() {
-                this.stop();
-                
-                // Clean up all frames
-                this.allFrames.forEach(splat => {
-                    if (scene.objects.includes(splat)) {
-                        scene.removeObject(splat);
-                    }
-                });
-                this.allFrames.clear();
-                
-                log('🗑️ Professional sequence player disposed - all frames cleaned');
-            }
-        }
-
-        // Import gsplat.js - using the exact working method
+        // Import gsplat.js with proper setup for 4D
         async function loadGsplat() {
             try {
-                // Add console.assert polyfill (gsplat.js needs this)
+                // Console.assert polyfill
                 if (!console.assert) {
                     console.assert = function(condition, message) {
                         if (!condition) {
@@ -593,64 +248,57 @@
                 }
 
                 updateLoadingText('Loading gsplat.js library...');
-                log('📦 Importing gsplat.js from CDN...');
-                
                 SPLAT = await import('https://cdn.jsdelivr.net/npm/gsplat@latest/dist/index.js');
                 
-                log(`✅ gsplat.js imported successfully`);
+                log('✅ gsplat.js imported successfully');
                 log(`📋 Available classes: ${Object.keys(SPLAT).join(', ')}`);
                 
                 return true;
             } catch (error) {
                 log(`❌ Failed to import gsplat.js: ${error.message}`);
-                log(`📋 Error stack: ${error.stack}`);
                 return false;
             }
         }
 
-        // Initialize gsplat.js - using the exact working method
-        async function initializeGSplat() {
+        // Initialize gsplat.js with VideoRenderProgram for 4D
+        async function initialize4DGSplat() {
             try {
-                updateLoadingText('Creating scene...');
-                log('🏗️ Creating SPLAT.Scene()...');
+                updateLoadingText('Creating 4D scene...');
                 scene = new SPLAT.Scene();
                 log('✅ Scene created');
                 
                 updateLoadingText('Creating camera...');
-                log('📹 Creating SPLAT.Camera()...');
                 camera = new SPLAT.Camera();
                 camera.position = new SPLAT.Vector3(0, 1.6, 3);
-                log('✅ Camera created and positioned');
+                log('✅ Camera created');
                 
-                updateLoadingText('Creating renderer...');
-                log('🖼️ Creating SPLAT.WebGLRenderer()...');
+                updateLoadingText('Creating WebGL renderer with VideoRenderProgram...');
                 renderer = new SPLAT.WebGLRenderer(canvas);
-                log('✅ Renderer created');
                 
-                updateLoadingText('Setting up controls...');
-                log('🎮 Creating SPLAT.OrbitControls()...');
+                // This is the key - add VideoRenderProgram for 4D animation!
+                const videoProgram = new SPLAT.VideoRenderProgram(renderer);
+                renderer.addProgram(videoProgram);
+                log('✅ VideoRenderProgram added for 4D animation');
+                
+                updateLoadingText('Setting up orbit controls...');
                 controls = new SPLAT.OrbitControls(camera, canvas);
                 log('✅ Controls created');
                 
                 updateLoadingText('Configuring viewport...');
-                log('📐 Configuring camera and renderer sizes...');
                 camera.data.setSize(window.innerWidth, window.innerHeight);
                 renderer.setSize(window.innerWidth, window.innerHeight);
-                log('✅ Viewport configured');
+                log('✅ Viewport configured for 4D rendering');
                 
                 return true;
                 
             } catch (error) {
-                log(`❌ Initialization failed: ${error.message}`);
-                log(`📋 Error stack: ${error.stack}`);
+                log(`❌ 4D initialization failed: ${error.message}`);
                 return false;
             }
         }
 
-        // Start render loop - using the exact working method
-        function startRenderLoop() {
-            log('🔄 Starting render loop...');
-            
+        // Start render loop for 4D animation
+        function start4DRenderLoop() {
             function render() {
                 try {
                     if (controls) {
@@ -658,11 +306,12 @@
                     }
                     
                     if (renderer && scene && camera) {
+                        // This renders with VideoRenderProgram doing 4D interpolation
                         renderer.render(scene, camera);
                     }
                 } catch (error) {
                     if (!render.errorLogged) {
-                        log(`❌ Render error: ${error.message}`);
+                        log(`❌ 4D render error: ${error.message}`);
                         render.errorLogged = true;
                     }
                 }
@@ -670,83 +319,98 @@
             }
             
             render();
-            log('✅ Render loop started');
+            log('✅ 4D render loop started with GPU temporal blending');
         }
 
-        // Button functions
-        async function loadAllFrames() {
+        // Load .splatv file using proper gsplat.js 4D method
+        async function loadSplatvFile() {
             if (!SPLAT) {
                 updateStatus('❌ gsplat.js not loaded!', 'error');
                 return;
             }
 
             loadBtn.disabled = true;
-            loadBtn.textContent = '🔄 Loading 0%...';
+            loadBtn.textContent = '🔄 Loading...';
             
             try {
-                // Create professional sequence player
-                sequencePlayer = new ProfessionalSequencePlayer();
+                // Your .splatv file URL - update this with your converted file
+                const url = './data/splat-animation.splatv'; // Update this path!
                 
-                // Load all 400 frames with progress
-                const success = await sequencePlayer.loadAllFrames();
+                log('🎬 Loading .splatv file for 4D animation');
+                log(`📁 URL: ${url}`);
                 
-                if (success) {
-                    loadBtn.textContent = '✅ All 400 Loaded';
-                    playBtn.disabled = false;
+                updateStatus('Loading 4D .splatv animation...', 'info');
+                
+                // Clear scene
+                scene.reset();
+                currentSplatv = null;
+                
+                // Use SplatvLoader - the CORRECT way for 4D animation
+                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
+                    const percent = (progress * 100).toFixed(0);
+                    updateStatus(`Loading 4D animation: ${percent}%`, 'info');
+                    log(`📈 Progress: ${percent}%`);
+                });
+                
+                log('✅ SplatvLoader.LoadAsync completed');
+                
+                // Find loaded Splatv object
+                const splatvObjects = scene.objects.filter(obj => obj instanceof SPLAT.Splatv);
+                log(`📊 Found ${splatvObjects.length} Splatv objects`);
+                
+                if (splatvObjects.length > 0) {
+                    currentSplatv = splatvObjects[0];
+                    const gaussianCount = currentSplatv.data.vertexCount || 0;
+                    log(`🎭 Loaded 4D animation: ${gaussianCount.toLocaleString()} gaussians`);
+                    
+                    // Position camera for optimal viewing
+                    if (controls) {
+                        const targetPos = camera.position.add(new SPLAT.Vector3(0, 0, -3));
+                        controls.setCameraTarget(targetPos);
+                        log('📹 Camera positioned for 4D animation');
+                    }
+                    
+                    updateStatus(`✅ 4D Animation loaded! ${gaussianCount.toLocaleString()} gaussians with GPU blending`, 'success');
+                    loadBtn.textContent = '✅ 4D Animation Loaded';
                     arBtn.disabled = false;
+                    
                 } else {
-                    loadBtn.textContent = '❌ Failed';
-                    setTimeout(() => {
-                        loadBtn.textContent = '🎬 Load All 400 Frames';
-                        loadBtn.disabled = false;
-                    }, 3000);
+                    throw new Error('No Splatv objects found in loaded file');
                 }
                 
             } catch (error) {
-                log(`❌ Load all frames error: ${error.message}`);
+                log(`❌ 4D loading failed: ${error.message}`);
+                updateStatus(`❌ Failed to load 4D animation: ${error.message}`, 'error');
+                
                 loadBtn.textContent = '❌ Failed';
                 setTimeout(() => {
-                    loadBtn.textContent = '🎬 Load All 400 Frames';
+                    loadBtn.textContent = '🎬 Load .splatv Animation';
                     loadBtn.disabled = false;
                 }, 3000);
-            }
-        };
-        function togglePlayback() {
-            if (!sequencePlayer || !sequencePlayer.isLoaded) {
-                updateStatus('❌ Load all frames first!', 'error');
-                return;
-            }
-            
-            if (sequencePlayer.isPlaying) {
-                sequencePlayer.stop();
-                playBtn.textContent = '▶️ Play Sequence';
-            } else {
-                sequencePlayer.startSequence();
-                playBtn.textContent = '⏸️ Stop';
             }
         }
 
         function startAR() {
-            if (!sequencePlayer || !sequencePlayer.isLoaded) {
-                updateStatus('❌ Load all frames first!', 'error');
+            if (!currentSplatv) {
+                updateStatus('❌ Load 4D animation first!', 'error');
                 return;
             }
             
-            updateStatus('🎯 AR Mode - Tap anywhere to place sequence', 'info');
+            updateStatus('🎯 AR Mode - Tap anywhere to place 4D animation', 'info');
             
-            // Simple click-to-place AR
+            // AR placement for the entire 4D sequence
             const arPlacement = (event) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
                 const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
                 
-                const position = {
-                    x: x * 5,
-                    y: 0,
-                    z: y * 5
-                };
+                // Move the entire 4D animation
+                const position = new SPLAT.Vector3(x * 5, 0, y * 5);
+                currentSplatv.position = position;
                 
-                sequencePlayer.placeInAR(position);
+                updateStatus('🚀 4D Animation placed in AR! GPU handles smooth blending', 'success');
+                log(`🚀 AR placement: [${position.x.toFixed(2)}, ${position.y.toFixed(2)}, ${position.z.toFixed(2)}]`);
+                
                 canvas.removeEventListener('click', arPlacement);
             };
             
@@ -758,34 +422,33 @@
             if (camera && renderer) {
                 camera.data.setSize(window.innerWidth, window.innerHeight);
                 renderer.setSize(window.innerWidth, window.innerHeight);
-                log('📐 Window resized, viewport updated');
+                log('📐 4D viewport resized');
             }
         }
 
-        // Main initialization - using the exact working method
+        // Main initialization
         async function main() {
             try {
-                log('🚀 Starting application...');
+                log('🚀 Starting 4D gsplat.js application...');
                 
                 const gSplatLoaded = await loadGsplat();
                 if (!gSplatLoaded) {
                     throw new Error('Failed to load gsplat.js');
                 }
                 
-                const gSplatReady = await initializeGSplat();
-                if (!gSplatReady) {
-                    throw new Error('Failed to initialize gsplat.js');
+                const initialized = await initialize4DGSplat();
+                if (!initialized) {
+                    throw new Error('Failed to initialize 4D gsplat.js');
                 }
                 
-                startRenderLoop();
+                start4DRenderLoop();
                 
-                // Hide loading, enable test button
                 loading.classList.add('hidden');
-                updateStatus('✅ Ready! Click "Load All 400 Frames" for professional playback', 'success');
-                log('🎯 Application ready - professional sequence player initialized');
+                updateStatus('✅ Ready for 4D animation! Convert your .splat sequence to .splatv first', 'success');
+                log('🎯 4D application ready - waiting for .splatv file');
                 
             } catch (error) {
-                log(`❌ Application startup failed: ${error.message}`);
+                log(`❌ 4D startup failed: ${error.message}`);
                 updateStatus(`❌ Startup failed: ${error.message}`, 'error');
                 loading.classList.add('hidden');
             }
@@ -794,21 +457,20 @@
         // Event listeners
         window.addEventListener('resize', handleResize);
         
-        // Global functions for buttons
-        window.loadAllFrames = loadAllFrames;
-        window.togglePlayback = togglePlayback;
+        // Global functions
+        window.loadSplatvFile = loadSplatvFile;
         window.startAR = startAR;
 
-        // Start the application - same as working test
+        // Start the application
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', main);
         } else {
             main();
         }
 
-        console.log('🎭 Professional AR Splat Sequence Player');
-        console.log('🎯 Features: Full 400-frame preload, frame blending, smooth 25fps');
-        console.log('📊 Memory: ~220MB for all frames, zero loading during playback');
+        console.log('🎭 Professional 4D AR Splat Animation');
+        console.log('🎯 Uses VideoRenderProgram with GPU temporal blending');
+        console.log('📊 Requires .splatv file format for smooth 4D animation');
 
     </script>
 </body>
