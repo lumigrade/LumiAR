@@ -1,227 +1,348 @@
-<!DOCTYPE html>
-<html lang="en" dir="ltr">
+<!doctype html>
+<html lang="en">
 <head>
-    <title>WebGL Spacetime Gaussian Splat Viewer</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>4D Gaussian Splatting Viewer</title>
     <style>
-        body {
-            overflow: hidden;
+        body,
+        html {
             margin: 0;
-            height: 100vh;
-            width: 100vw;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
             font-family: sans-serif;
-            background: black;
-            text-shadow: 0 0 3px black;
         }
-        a,
-        body {
+
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        dialog {
+            width: 100%;
+            text-align: center;
+            max-width: 20em;
+            color: white;
+            background-color: #000;
+            border: 1px solid #333;
+            border-radius: 8px;
+            position: relative;
+            transform: translate(-50%, -50%);
+        }
+
+        #progress-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+        }
+
+        progress {
+            width: 100%;
+            height: 1em;
+            border: none;
+            background-color: #333;
+            color: #eee;
+            border-radius: 4px;
+        }
+
+        progress::-webkit-progress-bar {
+            background-color: #333;
+            border-radius: 4px;
+        }
+
+        progress::-webkit-progress-value {
+            background-color: #667eea;
+            border-radius: 4px;
+        }
+
+        progress::-moz-progress-bar {
+            background-color: #667eea;
+            border-radius: 4px;
+        }
+
+        .file-selector {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.95);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid #333;
             color: white;
         }
-        #info {
-            z-index: 100;
-            position: absolute;
-            top: 10px;
-            left: 15px;
-        }
-        h3 {
-            margin: 5px 0;
-        }
-        p {
-            margin: 5px 0;
-            font-size: small;
-        }
 
-        .cube-wrapper {
-            transform-style: preserve-3d;
-        }
-
-        .cube {
-            transform-style: preserve-3d;
-            transform: rotateX(45deg) rotateZ(45deg);
-            animation: rotation 2s infinite;
-        }
-
-        .cube-faces {
-            transform-style: preserve-3d;
-            height: 80px;
-            width: 80px;
-            position: relative;
-            transform-origin: 0 0;
-            transform: translateX(0) translateY(0) translateZ(-40px);
-        }
-
-        .cube-face {
-            position: absolute;
-            inset: 0;
-            background: #0017ff;
-            border: solid 1px #ffffff;
-        }
-        .cube-face.top {
-            transform: translateZ(80px);
-        }
-        .cube-face.front {
-            transform-origin: 0 50%;
-            transform: rotateY(-90deg);
-        }
-        .cube-face.back {
-            transform-origin: 0 50%;
-            transform: rotateY(-90deg) translateZ(-80px);
-        }
-        .cube-face.right {
-            transform-origin: 50% 0;
-            transform: rotateX(-90deg) translateY(-80px);
-        }
-        .cube-face.left {
-            transform-origin: 50% 0;
-            transform: rotateX(-90deg) translateY(-80px) translateZ(80px);
-        }
-
-        @keyframes rotation {
-            0% {
-                transform: rotateX(45deg) rotateY(0) rotateZ(45deg);
-                animation-timing-function: cubic-bezier(0.17, 0.84, 0.44, 1);
-            }
-            50% {
-                transform: rotateX(45deg) rotateY(0) rotateZ(225deg);
-                animation-timing-function: cubic-bezier(0.76, 0.05, 0.86, 0.06);
-            }
-            100% {
-                transform: rotateX(45deg) rotateY(0) rotateZ(405deg);
-                animation-timing-function: cubic-bezier(0.17, 0.84, 0.44, 1);
-            }
-        }
-
-        .scene,
-        #message {
-            position: absolute;
-            display: flex;
-            top: 0;
-            right: 0;
-            left: 0;
-            bottom: 0;
-            z-index: 2;
-            height: 100%;
+        .file-btn {
+            display: block;
             width: 100%;
+            padding: 15px 25px;
+            margin: 10px 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border: none;
+            border-radius: 25px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            font-size: 14px;
+        }
+
+        .file-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .file-btn.example {
+            background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+        }
+
+        .controls-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            max-width: 200px;
+            z-index: 100;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .drop-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
             align-items: center;
             justify-content: center;
-        }
-        #message {
+            font-size: 24px;
             font-weight: bold;
-            font-size: large;
-            color: red;
-            pointer-events: none;
-        }
-
-        details {
-            font-size: small;
-        }
-
-        #progress {
-            position: absolute;
-            top: 0;
-            height: 5px;
-            background: blue;
-            z-index: 99;
-            transition: width 0.1s ease-in-out;
-        }
-
-        #quality {
-            position: absolute;
-            bottom: 10px;
             z-index: 999;
-            right: 10px;
-        }
-
-        #caminfo {
-            position: absolute;
-            top: 10px;
-            z-index: 999;
-            right: 10px;
-        }
-        #canvas {
-            display: block;
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            touch-action: none;
-        }
-
-        #instructions {
-            background: rgba(0, 0, 0, 0.6);
-            white-space: pre-wrap;
-            padding: 10px;
+            border: 3px dashed #667eea;
+            margin: 20px;
             border-radius: 10px;
-            font-size: x-small;
-        }
-        body.nohf .nohf {
-            display: none;
-        }
-        body.nohf #progress,
-        body.nohf .cube-face {
-            background: #ff9d0d;
-        }
-
-        #enter {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 10000;
-            padding: 10px;
-            display: none;
         }
     </style>
 </head>
 <body>
-    <div id="info">
-        <h3>🎬 4D Gaussian Splatting</h3>
-        <p>Arrow Keys = Move • Mouse = Look • Scroll = Zoom</p>
-        <p>WASD = Rotate (hybrid.js default)</p>
-        <p id="fileStatus">Click a button to load a file:</p>
-        <button onclick="window.location.href='?url=./data/splat-animation.splatv'" style="padding: 5px 10px; margin: 2px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer;">🎯 Your File</button>
-        <button onclick="window.location.href='?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv'" style="padding: 5px 10px; margin: 2px; background: #4ecdc4; color: white; border: none; border-radius: 5px; cursor: pointer;">✅ Example</button>
+    <div class="file-selector" id="fileSelector">
+        <h2>🎬 4D Gaussian Splatting Viewer</h2>
+        <p>Choose a .splatv file to load:</p>
+        <button class="file-btn" onclick="loadYourFile()">
+            🎯 Load Your File<br>
+            <small>./data/splat-animation.splatv</small>
+        </button>
+        <button class="file-btn example" onclick="loadExample()">
+            ✅ Load Working Example<br>
+            <small>flame.splatv (HuggingFace)</small>
+        </button>
+        <p style="font-size: 11px; opacity: 0.7; margin-top: 20px;">
+            Or drag & drop a .splatv file anywhere
+        </p>
     </div>
-    <div id="progress"></div>
 
-    <div id="message"></div>
-
-    <div class="scene" id="spinner">
-        <div class="cube-wrapper">
-            <div class="cube">
-                <div class="cube-faces">
-                    <div class="cube-face bottom"></div>
-                    <div class="cube-face top"></div>
-                    <div class="cube-face left"></div>
-                    <div class="cube-face right"></div>
-                    <div class="cube-face back"></div>
-                    <div class="cube-face front"></div>
-                </div>
-            </div>
-        </div>
+    <div class="controls-info hidden" id="controlsInfo">
+        <h4>🎮 Controls:</h4>
+        <p><strong>Mouse:</strong> Orbit camera<br>
+        <strong>Scroll:</strong> Zoom in/out<br>
+        <strong>Drag:</strong> Pan view</p>
+        <p style="margin-top: 10px; font-size: 10px; opacity: 0.7;">
+            Press H to hide this panel
+        </p>
     </div>
+
+    <div id="progress-container" class="hidden">
+        <dialog id="progress-dialog">
+            <p>
+                <label for="progress-indicator">Loading scene...</label>
+            </p>
+            <progress max="100" id="progress-indicator"></progress>
+        </dialog>
+    </div>
+
+    <div class="drop-zone hidden" id="dropZone">
+        📁 Drop your .splatv file here
+    </div>
+
     <canvas id="canvas"></canvas>
 
-    <div id="quality">
-        <span id="fps"></span>
-    </div>
-    <div id="caminfo">
-        <span id="camid"></span>
-    </div>
+    <script type="module">
+        // Import gsplat.js from CDN (official v1.2.0)
+        import * as SPLAT from 'https://cdn.jsdelivr.net/npm/gsplat@1.2.0/dist/gsplat.js';
 
-    <script>
-        // Simple status update
-        const params = new URLSearchParams(window.location.search);
-        const url = params.get('url');
-        if (url) {
-            document.getElementById('fileStatus').textContent = 'Loading: ' + url.split('/').pop();
+        const canvas = document.getElementById("canvas");
+        const progressDialog = document.getElementById("progress-dialog");
+        const progressIndicator = document.getElementById("progress-indicator");
+        const fileSelector = document.getElementById("fileSelector");
+        const controlsInfo = document.getElementById("controlsInfo");
+        const dropZone = document.getElementById("dropZone");
+
+        const renderer = new SPLAT.WebGLRenderer(canvas);
+        renderer.addProgram(new SPLAT.VideoRenderProgram(renderer));
+
+        const scene = new SPLAT.Scene();
+        const camera = new SPLAT.Camera();
+        const controls = new SPLAT.OrbitControls(camera, canvas);
+
+        let loading = false;
+
+        // File loading function
+        async function selectFile(file) {
+            if (loading) return;
+            loading = true;
+            
+            try {
+                if (file.name.endsWith(".splatv") || file.name.includes("splatv")) {
+                    scene.reset();
+                    showProgress();
+                    
+                    await SPLAT.SplatvLoader.LoadFromFileAsync(file, scene, camera, (progress) => {
+                        progressIndicator.value = progress * 100;
+                    });
+                    
+                    hideProgress();
+                    showControls();
+                    console.log("✅ File loaded successfully:", file.name);
+                } else {
+                    alert("Please select a .splatv file");
+                }
+            } catch (error) {
+                hideProgress();
+                alert("Error loading file: " + error.message);
+                console.error("Loading error:", error);
+            }
+            
+            loading = false;
         }
-    </script>
 
-    <script src="hybrid.js"></script>
+        // URL loading function
+        async function loadFromUrl(url, name) {
+            if (loading) return;
+            loading = true;
+            
+            try {
+                scene.reset();
+                showProgress();
+                
+                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
+                    progressIndicator.value = progress * 100;
+                });
+                
+                controls.setCameraTarget(camera.position.add(camera.forward.multiply(5)));
+                hideProgress();
+                showControls();
+                console.log("✅ URL loaded successfully:", name);
+            } catch (error) {
+                hideProgress();
+                alert("Error loading from URL: " + error.message);
+                console.error("URL loading error:", error);
+            }
+            
+            loading = false;
+        }
+
+        // UI Functions
+        function showProgress() {
+            fileSelector.classList.add('hidden');
+            document.getElementById('progress-container').classList.remove('hidden');
+            progressDialog.showModal();
+        }
+
+        function hideProgress() {
+            document.getElementById('progress-container').classList.add('hidden');
+            progressDialog.close();
+        }
+
+        function showControls() {
+            controlsInfo.classList.remove('hidden');
+        }
+
+        // Button handlers
+        window.loadYourFile = function() {
+            loadFromUrl('./data/splat-animation.splatv', 'Your .splatv file');
+        };
+
+        window.loadExample = function() {
+            loadFromUrl('https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv', 'Flame example');
+        };
+
+        // Drag & Drop support
+        document.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hidden');
+        });
+
+        document.addEventListener('dragleave', (e) => {
+            if (e.clientX === 0 && e.clientY === 0) {
+                dropZone.classList.add('hidden');
+            }
+        });
+
+        document.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hidden');
+            
+            if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+                selectFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'h') {
+                controlsInfo.classList.toggle('hidden');
+            }
+        });
+
+        // Render loop
+        function startRenderLoop() {
+            const handleResize = () => {
+                renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+            };
+
+            const frame = () => {
+                controls.update();
+                renderer.render(scene, camera);
+                requestAnimationFrame(frame);
+            };
+
+            handleResize();
+            window.addEventListener("resize", handleResize);
+            requestAnimationFrame(frame);
+        }
+
+        // Auto-load example if URL parameter exists
+        async function init() {
+            const params = new URLSearchParams(window.location.search);
+            const url = params.get('url');
+            
+            if (url) {
+                console.log('Auto-loading from URL parameter:', url);
+                if (url.includes('flame')) {
+                    loadExample();
+                } else {
+                    loadFromUrl(url, url.split('/').pop());
+                }
+            }
+            
+            // Start render loop
+            startRenderLoop();
+        }
+
+        // Initialize
+        init();
+    </script>
 </body>
 </html>
