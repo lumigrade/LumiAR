@@ -14,6 +14,7 @@
     <p>Controls: Mouse = Look • Scroll = Zoom • Arrow Keys = Move</p>
     <button id="your-model">🎯 Your Model</button>
     <button id="example">✅ Example</button>
+    <p>Click a button to load</p>
     <div id="fps">-- FPS</div>
     <div id="status">Ready</div>
     <input type="file" id="file-input" style="display: none;" accept=".splatv">
@@ -45,7 +46,7 @@
 
         let startTime = Date.now();
         let previousTime = Date.now();
-        let duration = 1; // seconds for full loop
+        let duration = 25; // Default for example
         let keys = {};
 
         document.addEventListener('keydown', (e) => keys[e.key] = true);
@@ -67,7 +68,7 @@
             status.textContent = 'Loading...';
             try {
                 const numFrames = await getNumFrames(url);
-                duration = numFrames / 25; // 25 FPS
+                duration = numFrames / 25;
                 await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
                     status.textContent = `Loading ${Math.round(progress * 100)}%`;
                 });
@@ -96,7 +97,6 @@
             const delta = (now - previousTime) / 1000;
             previousTime = now;
 
-            // Handle arrow key movement
             const moveSpeed = 0.5;
             const direction = new THREE.Vector3();
             camera.getWorldDirection(direction);
@@ -109,7 +109,6 @@
 
             controls.update();
 
-            // Animate time
             const elapsed = (now - startTime) / 1000;
             const time = (elapsed / duration) % 1;
             renderer.programs[0].uniforms.uTime.value = time;
