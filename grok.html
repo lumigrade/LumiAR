@@ -20,24 +20,23 @@
     <div id="status">Ready</div>
     <input type="file" id="file-input" style="display: none;" accept=".splatv">
 
-    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@webxr-input-profiles/motion-controllers@1.0.0/dist/motion-controllers.module.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/webxr/VRButton.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/loaders/PLYLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsplat@1.2.9/dist/gsplat.umd.js"></script>
-    <script type="text/javascript">
+    <script type="module">
+        import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+        import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/controls/OrbitControls.js';
+        import { PLYLoader } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/loaders/PLYLoader.js';
+        import * as gsplat from 'https://cdn.jsdelivr.net/npm/gsplat@1.2.9/dist/gsplat.js';
+
         const canvas = document.createElement('canvas');
         document.body.appendChild(canvas);
         canvas.style.width = '100vw';
         canvas.style.height = '80vh';
 
-        const renderer = new SPLAT.WebGLRenderer(canvas);
-        renderer.addProgram(new SPLAT.VideoRenderProgram(renderer));
+        const renderer = new gsplat.WebGLRenderer(canvas);
+        renderer.addProgram(new gsplat.VideoRenderProgram(renderer));
 
-        const scene = new SPLAT.Scene();
-        const camera = new SPLAT.Camera();
-        const controls = new SPLAT.OrbitControls(camera, canvas);
+        const scene = new gsplat.Scene();
+        const camera = new gsplat.Camera();
+        const controls = new OrbitControls(camera, canvas);
 
         const fpsDisplay = document.getElementById('fps');
         const status = document.getElementById('status');
@@ -72,7 +71,7 @@
             try {
                 const numFrames = await getNumFrames(url);
                 duration = numFrames / 25;
-                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
+                await gsplat.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
                     status.textContent = `Loading ${Math.round(progress * 100)}%`;
                 });
                 status.textContent = 'Ready';
