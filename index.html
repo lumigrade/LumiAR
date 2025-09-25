@@ -322,7 +322,7 @@
             log('✅ 4D render loop started with GPU temporal blending');
         }
 
-        // Load .splatv file using proper gsplat.js 4D method
+        // Load .splatv file using proper gsplat.js 4D method with detailed debugging
         async function loadSplatvFile() {
             if (!SPLAT) {
                 updateStatus('❌ gsplat.js not loaded!', 'error');
@@ -333,24 +333,66 @@
             loadBtn.textContent = '🔄 Loading...';
             
             try {
-                // Your .splatv file URL - update this with your converted file
-                const url = './data/splat-animation.splatv'; // Update this path!
+                // Test with small file first - update this path!
+                const url = './data/test-5frames.splatv'; // Start with small test file
                 
                 log('🎬 Loading .splatv file for 4D animation');
                 log(`📁 URL: ${url}`);
                 
-                updateStatus('Loading 4D .splatv animation...', 'info');
+                // First, let's check the file format before loading
+                updateStatus('Checking .splatv file format...', 'info');
+                
+                try {
+                    const response = await fetch(url, { method: 'HEAD' });
+                    if (!response.ok) {
+                        throw new Error(`File not found: ${response.status} ${response.statusText}`);
+                    }
+                    
+                    const fileSize = response.headers.get('content-length');
+                    if (fileSize) {
+                        log(`📏 File size: ${parseInt(fileSize).toLocaleString()} bytes (${(parseInt(fileSize) / 1024 / 1024).toFixed(2)} MB)`);
+                    }
+                } catch (fetchError) {
+                    throw new Error(`Cannot access file: ${fetchError.message}`);
+                }
+                
+                updateStatus('Loading 4D .splatv animation with format validation...', 'info');
                 
                 // Clear scene
                 scene.reset();
                 currentSplatv = null;
                 
-                // Use SplatvLoader - the CORRECT way for 4D animation
-                await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
-                    const percent = (progress * 100).toFixed(0);
-                    updateStatus(`Loading 4D animation: ${percent}%`, 'info');
-                    log(`📈 Progress: ${percent}%`);
-                });
+                // Add detailed progress tracking
+                let lastProgress = 0;
+                
+                // Use SplatvLoader with detailed error catching
+                try {
+                    await SPLAT.SplatvLoader.LoadAsync(url, scene, camera, (progress) => {
+                        const percent = Math.round(progress * 100);
+                        if (percent !== lastProgress && percent % 5 === 0) {
+                            updateStatus(`Loading 4D animation: ${percent}%`, 'info');
+                            log(`📈 Progress: ${percent}%`);
+                            lastProgress = percent;
+                        }
+                    });
+                } catch (splatvError) {
+                    log(`❌ SplatvLoader.LoadAsync failed: ${splatvError.message}`);
+                    log(`📋 Error name: ${splatvError.name}`);
+                    log(`📋 Error stack: ${splatvError.stack}`);
+                    
+                    // Try to provide more specific debugging info
+                    if (splatvError.message.includes('offset is out of bounds')) {
+                        log('🔍 DEBUGGING INFO:');
+                        log('• This usually means the .splatv file format doesn\'t match expectations');
+                        log('• Check if your splat2splatv.js converter created the right format');
+                        log('• Try creating a test file with just 5 frames first');
+                        log('• Verify the texture width/height match the data size');
+                        
+                        throw new Error(`Invalid .splatv format: ${splatvError.message}. Try converting with fewer frames first for testing.`);
+                    } else {
+                        throw splatvError;
+                    }
+                }
                 
                 log('✅ SplatvLoader.LoadAsync completed');
                 
@@ -361,7 +403,13 @@
                 if (splatvObjects.length > 0) {
                     currentSplatv = splatvObjects[0];
                     const gaussianCount = currentSplatv.data.vertexCount || 0;
-                    log(`🎭 Loaded 4D animation: ${gaussianCount.toLocaleString()} gaussians`);
+                    const textureWidth = currentSplatv.data.width || 0;
+                    const textureHeight = currentSplatv.data.height || 0;
+                    
+                    log(`🎭 Loaded 4D animation successfully!`);
+                    log(`📊 Gaussians: ${gaussianCount.toLocaleString()}`);
+                    log(`📊 Texture: ${textureWidth}x${textureHeight}`);
+                    log(`📊 Data size: ${(currentSplatv.data.data.byteLength / 1024 / 1024).toFixed(2)} MB`);
                     
                     // Position camera for optimal viewing
                     if (controls) {
@@ -370,7 +418,7 @@
                         log('📹 Camera positioned for 4D animation');
                     }
                     
-                    updateStatus(`✅ 4D Animation loaded! ${gaussianCount.toLocaleString()} gaussians with GPU blending`, 'success');
+                    updateStatus(`✅ 4D Animation loaded! ${gaussianCount.toLocaleString()} gaussians, ${textureWidth}x${textureHeight} texture`, 'success');
                     loadBtn.textContent = '✅ 4D Animation Loaded';
                     arBtn.disabled = false;
                     
@@ -382,11 +430,22 @@
                 log(`❌ 4D loading failed: ${error.message}`);
                 updateStatus(`❌ Failed to load 4D animation: ${error.message}`, 'error');
                 
+                // Show additional help for common issues
+                if (error.message.includes('File not found')) {
+                    log('💡 SOLUTION: First convert your .splat sequence to .splatv:');
+                    log('   node --max-old-space-size=8192 splat2splatv.js ./data/splat test-5frames.splatv 1 5');
+                    log('   Then update the URL in the code to point to your .splatv file');
+                } else if (error.message.includes('Invalid .splatv format')) {
+                    log('💡 SOLUTION: Try creating a smaller test file first:');
+                    log('   node --max-old-space-size=8192 splat2splatv.js ./data/splat test-5frames.splatv 1 5');
+                    log('   This will help debug the format issue with fewer frames');
+                }
+                
                 loadBtn.textContent = '❌ Failed';
                 setTimeout(() => {
                     loadBtn.textContent = '🎬 Load .splatv Animation';
                     loadBtn.disabled = false;
-                }, 3000);
+                }, 5000);
             }
         }
 
