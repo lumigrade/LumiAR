@@ -329,10 +329,13 @@ async function initXR() {
     gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    // Custom timing for 16-second sequences  
-    const elapsed = (Date.now() - startTime) / 1000;
-    const normalizedTime = (elapsed * speed) % 16.0 / 16.0; // Linear 0-1 over 16 seconds
-    gl.uniform1f(u_time, normalizedTime);
+    // Linear time for 16-second sequences with speed control  
+    if (!window.animationStartTime) window.animationStartTime = Date.now();
+    const elapsed = (Date.now() - window.animationStartTime) / 1000;
+    const speed = window.playbackSpeed || 0.2;
+    const sequenceDuration = 16.0;
+    const loopTime = (elapsed * speed) % sequenceDuration;
+    gl.uniform1f(u_time, loopTime / sequenceDuration);
 
     for (let view of pose.views) {
       let viewport = glLayer.getViewport(view);
