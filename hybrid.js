@@ -402,15 +402,11 @@ async function main() {
     )
   );
   // Speed control globals
-  window.playbackSpeed = 1.0; // Start at 100% speed
+  window.playbackSpeed = 0.2; // Start at 20% speed
   window.setPlaybackSpeed = function(speed) {
       window.playbackSpeed = speed;
       console.log('Playback speed set to:', speed);
   };
-
-  // Animation timing variables
-  window.animationStartTime = Date.now();
-
   const canvas = document.getElementById("canvas");
   const fps = document.getElementById("fps");
   //   const camid = document.getElementById("camid");
@@ -897,12 +893,8 @@ async function main() {
     if (vertexCount > 0) {
       document.getElementById("spinner").style.display = "none";
       gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
-      // Linear time for 16-second sequences with speed control
-      const elapsed = (Date.now() - window.animationStartTime) / 1000;
-      const speed = window.playbackSpeed || 0.2;
-      const sequenceDuration = 16.0;
-      const loopTime = (elapsed * speed) % sequenceDuration;
-      gl.uniform1f(u_time, loopTime / sequenceDuration);
+      const elapsed = (Date.now() - startTime) / 1000;
+      const normalizedTime = (elapsed * speed) % 16.0 / 16.0; // Linear 0-1 over 16 seconds
       gl.uniform1f(u_time, normalizedTime);
 
       gl.clear(gl.COLOR_BUFFER_BIT);
