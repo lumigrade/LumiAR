@@ -381,7 +381,7 @@
                         window.frame = function() {
                             // Calculate custom time based on your 16-second sequence
                             const elapsed = (Date.now() - window.animationStart) / 1000;
-                            const speed = window.playbackSpeed || 0.2;
+                            const speed = window.playbackSpeed || 1.0;
                             const scaledTime = (elapsed * speed) % window.animationDuration;
                             const normalizedTime = scaledTime / window.animationDuration; // 0 to 1
                             
