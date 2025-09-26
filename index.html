@@ -301,9 +301,9 @@
                     class="speed-slider" 
                     min="10" 
                     max="100" 
-                    value="20"
+                    value="100"
                 />
-                <span class="speed-label" id="speedValue">20%</span>
+                <span class="speed-label" id="speedValue">100%</span>
             </div>
         </div>
         
@@ -354,7 +354,7 @@
         // Initialize speed control on load and override hybrid.js timing
         window.addEventListener('load', function() {
             // Set initial speed to 20% to slow down the animation
-            const initialSpeed = 20;
+            const initialSpeed = 100;
             document.getElementById('speedSlider').value = initialSpeed;
             document.getElementById('speedValue').textContent = initialSpeed + '%';
             
