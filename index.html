@@ -544,8 +544,12 @@
                 updateStatus('✅ Loaded ' + window.vertexCount.toLocaleString() + ' gaussians');
                 document.getElementById('camid').textContent = window.vertexCount.toLocaleString() + ' gaussians';
                 clearInterval(checkLoading);
-            } else if (checkCount > 60) { // 30 seconds timeout
-                updateStatus('Timeout - file may not exist or be too large', 'error');
+            } else if (checkCount > 120) { // Increase to 60 seconds timeout
+                // Only show timeout if no file is being loaded
+                const currentStatus = document.getElementById('status').textContent;
+                if (!currentStatus.includes('Loading') && !currentStatus.includes('File found')) {
+                    updateStatus('Timeout - file may not exist or be too large', 'error');
+                }
                 clearInterval(checkLoading);
             }
         }, 500);
