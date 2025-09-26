@@ -897,12 +897,14 @@ async function main() {
     if (vertexCount > 0) {
       document.getElementById("spinner").style.display = "none";
       gl.uniformMatrix4fv(u_view, false, actualViewMatrix);
-      // Linear time for 16-second sequences with speed control
+      // Dynamic animation duration based on frame count
       const elapsed = (Date.now() - window.animationStartTime) / 1000;
-      const speed = window.playbackSpeed || 0.2;
-      const sequenceDuration = 16.0;
-      const loopTime = (elapsed * speed) % sequenceDuration;
-      gl.uniform1f(u_time, loopTime / sequenceDuration);
+      const speed = window.playbackSpeed || 1.0;
+
+      // Calculate duration based on expected frame count at 25fps
+      const expectedDuration = window.currentFrameCount ? (window.currentFrameCount / 25.0) : 16.0;
+      const loopTime = (elapsed * speed) % expectedDuration;
+      gl.uniform1f(u_time, loopTime / expectedDuration);
       // REMOVED: gl.uniform1f(u_time, normalizedTime);
 
       gl.clear(gl.COLOR_BUFFER_BIT);

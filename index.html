@@ -508,6 +508,7 @@
                     updateStatus('Loaded ' + args[1].toLocaleString() + ' gaussians', '');
                 } else if (args[0] === 'splat' && args[1] === 0) {
                     updateStatus('✅ File loaded successfully!', '');
+                    window.currentFrameCount = 0;
                     if (window.vertexCount > 0) {
                         // Reset camera to a standard position for mobile
                         const isMobile = window.innerWidth < 768;
