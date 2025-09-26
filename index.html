@@ -508,12 +508,15 @@
                     updateStatus('Loaded ' + args[1].toLocaleString() + ' gaussians', '');
                 } else if (args[0] === 'splat' && args[1] === 0) {
                     updateStatus('✅ File loaded successfully!', '');
-                    if (window.vertexCount) {
-                        console.log('Vertex count:', window.vertexCount);
-                        console.log('Mobile device memory estimate:', navigator.deviceMemory + 'GB');
-                        console.log('WebGL max texture size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+                    if (window.vertexCount > 0) {
+                        // Reset camera to a standard position for mobile
+                        const isMobile = window.innerWidth < 768;
+                        if (isMobile) {
+                            // Force camera to origin with wider view for mobile
+                            viewMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -5, 1]; // 5 units back
+                            console.log('Mobile: Reset camera position');
+                        }
                     }
-                } else if (args[0].includes('Scene Bytes')) {
                     updateStatus('Processing scene data...', 'loading');
                 }
             }
