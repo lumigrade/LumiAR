@@ -363,7 +363,7 @@
             document.getElementById('speedValue').textContent = initialSpeed + '%';
             
             // Apply initial speed settings
-            const speedMultiplier = initialSpeed / 100;
+            const speedMultiplier = initialSpeed / 200;
             window.playbackSpeed = speedMultiplier;
             window.targetFrameTime = (1000 / 25) / speedMultiplier; // 40ms per frame at 100%, 200ms at 20%
             
