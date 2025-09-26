@@ -508,6 +508,11 @@
                     updateStatus('Loaded ' + args[1].toLocaleString() + ' gaussians', '');
                 } else if (args[0] === 'splat' && args[1] === 0) {
                     updateStatus('✅ File loaded successfully!', '');
+                    if (window.vertexCount) {
+                        console.log('Vertex count:', window.vertexCount);
+                        console.log('Mobile device memory estimate:', navigator.deviceMemory + 'GB');
+                        console.log('WebGL max texture size:', gl.getParameter(gl.MAX_TEXTURE_SIZE));
+                    }
                 } else if (args[0].includes('Scene Bytes')) {
                     updateStatus('Processing scene data...', 'loading');
                 }
