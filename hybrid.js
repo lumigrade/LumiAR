@@ -410,6 +410,7 @@ async function main() {
 
   // Animation timing variables
   window.animationStartTime = Date.now();
+  let start = Date.now();
 
   const canvas = document.getElementById("canvas");
   const fps = document.getElementById("fps");
@@ -739,7 +740,6 @@ async function main() {
 
   let lastFrame = 0;
   let avgFps = 0;
-  let start = 0;
 
   window.addEventListener("gamepadconnected", (e) => {
     const gp = navigator.getGamepads()[e.gamepad.index];
