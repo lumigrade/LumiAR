@@ -902,7 +902,7 @@ async function main() {
       const speed = window.playbackSpeed || 1.0;
 
       // Calculate duration based on expected frame count at 25fps
-      const loopTime = (elapsed * speed * 0.5) % 1.0;
+      const loopTime = (elapsed * speed * 0.25) % 1.0;
       gl.uniform1f(u_time, loopTime);
       // REMOVED: gl.uniform1f(u_time, normalizedTime);
 
