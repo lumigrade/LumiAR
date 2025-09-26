@@ -561,78 +561,55 @@
     
         // AR/XR Support for Mobile
         async function startAR() {
-            // Check multiple ways that sequences can be detected
-            const hasSequence = window.vertexCount > 0 || 
-                            document.getElementById('camid').textContent.includes('gaussians') ||
-                            document.getElementById('status').textContent.includes('File loaded successfully');
-
             if (!window.sequenceLoaded && !window.vertexCount) {
                 updateStatus('Load animation first!', 'error');
                 return;
             }
 
             try {
-                // Check for WebXR support (iOS Safari 14.5+, Android Chrome)
-                if ('xr' in navigator) {
-                    const isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
-                    if (isARSupported) {
-                        await startWebXRAR();
-                        return;
+                // Try to get camera access first
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment', // Back camera
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
                     }
-                }
+                });
 
-                // Fallback: Device orientation AR (works on most mobile browsers)
-                await startOrientationAR();
+                await startCameraAR(stream);
 
             } catch (error) {
-                console.error('AR failed:', error);
-                updateStatus('AR not supported on this device', 'error');
+                console.error('Camera AR failed:', error);
+                updateStatus('Camera access denied or not available', 'error');
             }
         }
 
-        // WebXR AR (Modern iOS/Android)
-        async function startWebXRAR() {
-            const session = await navigator.xr.requestSession('immersive-ar', {
-                requiredFeatures: ['local'],
-                optionalFeatures: ['hit-test', 'dom-overlay'],
-                domOverlay: { root: document.body }
-            });
-
-            updateStatus('AR Active - Tap to place animation', 'info');
+        // Camera-based AR
+        async function startCameraAR(stream) {
+            // Create video element for camera feed
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.playsInline = true;
+            video.style.position = 'fixed';
+            video.style.top = '0';
+            video.style.left = '0';
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.style.zIndex = '-1';
             
-            // Simple tap-to-place
+            document.body.appendChild(video);
+            
+            updateStatus('AR Camera Active - Tap to place animation', 'info');
+            
+            // Make canvas transparent so camera shows through
             const canvas = document.getElementById('canvas');
-            canvas.addEventListener('click', (event) => {
-                const rect = canvas.getBoundingClientRect();
-                const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-                const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-                
-                console.log('AR: Animation placed at', x, y);
-                updateStatus('Animation placed in AR!', 'success');
-            });
-        }
-
-        // Device Orientation AR (Fallback for older devices)
-        async function startOrientationAR() {
-            if (DeviceOrientationEvent.requestPermission) {
-                // iOS permission request
-                const permission = await DeviceOrientationEvent.requestPermission();
-                if (permission !== 'granted') {
-                    throw new Error('Orientation permission denied');
-                }
-            }
-
-            updateStatus('AR Mode - Move device to look around', 'info');
+            canvas.style.background = 'transparent';
             
-            // Use device orientation for camera control
-            window.addEventListener('deviceorientation', (event) => {
-                // Convert device orientation to camera rotation
-                const alpha = event.alpha * Math.PI / 180; // Z axis
-                const beta = event.beta * Math.PI / 180;   // X axis  
-                const gamma = event.gamma * Math.PI / 180; // Y axis
-                
-                // Apply basic orientation to view (simplified)
-                console.log('Device orientation:', { alpha, beta, gamma });
+            // Add tap-to-place functionality
+            canvas.addEventListener('click', (event) => {
+                updateStatus('Animation placed in AR space!', 'success');
             });
         }
 
