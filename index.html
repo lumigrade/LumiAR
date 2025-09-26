@@ -512,6 +512,7 @@
                     updateStatus('Loaded ' + args[1].toLocaleString() + ' gaussians', '');
                 } else if (args[0] === 'splat' && args[1] === 0) {
                     updateStatus('✅ File loaded successfully!', '');
+                    window.sequenceLoaded = true; // Add this line
                     window.currentFrameCount = 0;
                     if (window.vertexCount > 0) {
                         // Reset camera to a standard position for mobile
@@ -560,7 +561,12 @@
     
         // AR/XR Support for Mobile
         async function startAR() {
-            if (!window.vertexCount || window.vertexCount === 0) {
+            // Check multiple ways that sequences can be detected
+            const hasSequence = window.vertexCount > 0 || 
+                            document.getElementById('camid').textContent.includes('gaussians') ||
+                            document.getElementById('status').textContent.includes('File loaded successfully');
+
+            if (!window.sequenceLoaded && !window.vertexCount) {
                 updateStatus('Load animation first!', 'error');
                 return;
             }
