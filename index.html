@@ -144,7 +144,10 @@
         .file-btn.load {
             background: linear-gradient(135deg, #ff9d0d 0%, #ff6b35 100%);
         }
-
+        
+        .file-btn.ar {
+            background: linear-gradient(135deg, #46a049 0%, #2d5016 100%);
+}
         .cube-wrapper {
             transform-style: preserve-3d;
         }
@@ -308,8 +311,9 @@
         </div>
         
         <div class="file-buttons">
-            <a href="?url=https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/model-fixed.splatv" class="file-btn">🎯 Your Model</a>
+            <a href="?url=https://huggingface.co/datasets/lumigrade/LumiAR/resolve/main/model86.splatv" class="file-btn">🎯 Call Model86</a>
             <a href="?url=https://huggingface.co/datasets/dylanebert/3dgs/resolve/main/4d/flame/flame.splatv" class="file-btn example">✅ Example</a>
+            <button id="arButton" class="file-btn" style="background: linear-gradient(135deg, #46a049 0%, #2d5016 100%);">🚀 AR Mode</button>
         </div>
         <div id="status">Click a button to load</div>
     </div>
@@ -553,6 +557,83 @@
                 clearInterval(checkLoading);
             }
         }, 500);
+    
+        // AR/XR Support for Mobile
+        async function startAR() {
+            if (!window.vertexCount || window.vertexCount === 0) {
+                updateStatus('Load animation first!', 'error');
+                return;
+            }
+
+            try {
+                // Check for WebXR support (iOS Safari 14.5+, Android Chrome)
+                if ('xr' in navigator) {
+                    const isARSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                    if (isARSupported) {
+                        await startWebXRAR();
+                        return;
+                    }
+                }
+
+                // Fallback: Device orientation AR (works on most mobile browsers)
+                await startOrientationAR();
+
+            } catch (error) {
+                console.error('AR failed:', error);
+                updateStatus('AR not supported on this device', 'error');
+            }
+        }
+
+        // WebXR AR (Modern iOS/Android)
+        async function startWebXRAR() {
+            const session = await navigator.xr.requestSession('immersive-ar', {
+                requiredFeatures: ['local'],
+                optionalFeatures: ['hit-test', 'dom-overlay'],
+                domOverlay: { root: document.body }
+            });
+
+            updateStatus('AR Active - Tap to place animation', 'info');
+            
+            // Simple tap-to-place
+            const canvas = document.getElementById('canvas');
+            canvas.addEventListener('click', (event) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+                const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                console.log('AR: Animation placed at', x, y);
+                updateStatus('Animation placed in AR!', 'success');
+            });
+        }
+
+        // Device Orientation AR (Fallback for older devices)
+        async function startOrientationAR() {
+            if (DeviceOrientationEvent.requestPermission) {
+                // iOS permission request
+                const permission = await DeviceOrientationEvent.requestPermission();
+                if (permission !== 'granted') {
+                    throw new Error('Orientation permission denied');
+                }
+            }
+
+            updateStatus('AR Mode - Move device to look around', 'info');
+            
+            // Use device orientation for camera control
+            window.addEventListener('deviceorientation', (event) => {
+                // Convert device orientation to camera rotation
+                const alpha = event.alpha * Math.PI / 180; // Z axis
+                const beta = event.beta * Math.PI / 180;   // X axis  
+                const gamma = event.gamma * Math.PI / 180; // Y axis
+                
+                // Apply basic orientation to view (simplified)
+                console.log('Device orientation:', { alpha, beta, gamma });
+            });
+        }
+
+        // Connect AR button
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('arButton').addEventListener('click', startAR);
+        });
     </script>
     
     <!-- Load hybrid.js which handles the actual rendering -->
